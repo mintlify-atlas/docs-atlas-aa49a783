@@ -1,0 +1,312 @@
+---
+title: "List Employees"
+description: "Retrieve a paginated list of employees with filtering and sorting options"
+api: "GET /api/v1/employees"
+---
+
+## Overview
+
+Returns a paginated list of all employees in the system. Supports filtering by active status, position role, and text search across code, first name, and last name. Results can be sorted by multiple fields.
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from OAuth2 authentication
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="is_active" type="boolean">
+  Filter by employee active status. When `true`, returns only active employees. When `false`, returns only inactive employees. Omit to return all employees regardless of status.
+</ParamField>
+
+<ParamField query="status" type="string">
+  Special filter for employment status. Use `"baja"` to return only employees without an active employment period (terminated employees).
+</ParamField>
+
+<ParamField query="role" type="string">
+  Filter by position role. Returns employees who have the specified role assigned.
+  
+  **Allowed values**: `manager`, `cook`, `kitchen-assistant`, `delivery-driver`, `acting-manager`, `admin`, `super-admin`
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search text to filter employees. Searches across:
+  - Employee code (e.g., "EMP-001")
+  - First name
+  - Last name
+  
+  Search is case-insensitive and matches partial strings.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default={15}>
+  Number of items per page. Must be between 1 and 100.
+</ParamField>
+
+<ParamField query="sort[]" type="array">
+  Array of sort specifications in the format `field:direction`.
+  
+  **Sortable fields**: `code`, `first_name`, `last_name`, `is_active`, `created_at`
+  
+  **Direction**: `asc` or `desc`
+  
+  **Example**: `sort[]=code:asc&sort[]=last_name:asc`
+  
+  **Default**: Sorts by `code:asc` when no sort is specified
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (200)
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of employee objects
+  
+  <Expandable title="Employee Object">
+    <ResponseField name="id" type="string">
+      Employee public identifier (ULID format)
+    </ResponseField>
+    
+    <ResponseField name="code" type="string">
+      Unique employee code (e.g., "EMP-001")
+    </ResponseField>
+    
+    <ResponseField name="first_name" type="string">
+      Employee first name
+    </ResponseField>
+    
+    <ResponseField name="last_name" type="string">
+      Employee last name
+    </ResponseField>
+    
+    <ResponseField name="is_active" type="boolean">
+      Whether the employee is currently active
+    </ResponseField>
+    
+    <ResponseField name="email" type="string" nullable>
+      Employee email address (from linked user account)
+    </ResponseField>
+    
+    <ResponseField name="phone" type="string" nullable>
+      Employee phone number without country code (from linked user account)
+    </ResponseField>
+    
+    <ResponseField name="roles" type="array">
+      Array of position role names assigned to this employee
+    </ResponseField>
+    
+    <ResponseField name="employment_periods" type="array">
+      Array of employment period objects showing work history
+      
+      <Expandable title="Employment Period Object">
+        <ResponseField name="id" type="string">
+          Employment period public identifier (ULID)
+        </ResponseField>
+        
+        <ResponseField name="branch_id" type="integer">
+          ID of the branch for this employment period
+        </ResponseField>
+        
+        <ResponseField name="branch" type="object">
+          Branch details
+        </ResponseField>
+        
+        <ResponseField name="start_date" type="string">
+          Start date in YYYY-MM-DD format
+        </ResponseField>
+        
+        <ResponseField name="end_date" type="string" nullable>
+          End date in YYYY-MM-DD format (null for active period)
+        </ResponseField>
+        
+        <ResponseField name="is_active" type="boolean">
+          Whether this employment period is currently active
+        </ResponseField>
+        
+        <ResponseField name="termination_reason" type="string" nullable>
+          Reason for termination (only present when period is inactive)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="active_employment_periods_count" type="integer">
+      Number of active employment periods (typically 0 or 1)
+    </ResponseField>
+    
+    <ResponseField name="meta" type="object" nullable>
+      Additional metadata stored with the employee
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="string">
+      ISO 8601 timestamp when the employee was created (UTC)
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="string">
+      ISO 8601 timestamp when the employee was last updated (UTC)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Pagination metadata
+  
+  <Expandable title="Pagination Meta">
+    <ResponseField name="current_page" type="integer">
+      Current page number
+    </ResponseField>
+    
+    <ResponseField name="from" type="integer">
+      Index of first item on current page
+    </ResponseField>
+    
+    <ResponseField name="last_page" type="integer">
+      Total number of pages
+    </ResponseField>
+    
+    <ResponseField name="path" type="string">
+      Base URL for the endpoint
+    </ResponseField>
+    
+    <ResponseField name="per_page" type="integer">
+      Items per page
+    </ResponseField>
+    
+    <ResponseField name="to" type="integer">
+      Index of last item on current page
+    </ResponseField>
+    
+    <ResponseField name="total" type="integer">
+      Total number of items across all pages
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="links" type="object">
+  Pagination links
+  
+  <Expandable title="Pagination Links">
+    <ResponseField name="first" type="string">
+      URL to first page
+    </ResponseField>
+    
+    <ResponseField name="last" type="string">
+      URL to last page
+    </ResponseField>
+    
+    <ResponseField name="prev" type="string" nullable>
+      URL to previous page (null on first page)
+    </ResponseField>
+    
+    <ResponseField name="next" type="string" nullable>
+      URL to next page (null on last page)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+<Tabs>
+  <Tab title="List all employees">
+    ```bash
+    curl -X GET "https://api.sushigo.local/api/v1/employees" \
+      -H "Authorization: Bearer YOUR_TOKEN"
+    ```
+  </Tab>
+  
+  <Tab title="Filter active employees">
+    ```bash
+    curl -X GET "https://api.sushigo.local/api/v1/employees?is_active=true" \
+      -H "Authorization: Bearer YOUR_TOKEN"
+    ```
+  </Tab>
+  
+  <Tab title="Filter by role">
+    ```bash
+    curl -X GET "https://api.sushigo.local/api/v1/employees?role=cook" \
+      -H "Authorization: Bearer YOUR_TOKEN"
+    ```
+  </Tab>
+  
+  <Tab title="Search employees">
+    ```bash
+    curl -X GET "https://api.sushigo.local/api/v1/employees?search=Juan" \
+      -H "Authorization: Bearer YOUR_TOKEN"
+    ```
+  </Tab>
+  
+  <Tab title="List terminated employees">
+    ```bash
+    curl -X GET "https://api.sushigo.local/api/v1/employees?status=baja" \
+      -H "Authorization: Bearer YOUR_TOKEN"
+    ```
+  </Tab>
+  
+  <Tab title="Custom sorting">
+    ```bash
+    curl -X GET "https://api.sushigo.local/api/v1/employees?sort[]=last_name:asc&sort[]=first_name:asc" \
+      -H "Authorization: Bearer YOUR_TOKEN"
+    ```
+  </Tab>
+</Tabs>
+
+## Response Example
+
+```json
+{
+  "status": 200,
+  "data": [
+    {
+      "id": "01JKXYZ1234567890ABCDEFGH",
+      "code": "EMP-001",
+      "first_name": "Juan",
+      "last_name": "Pérez",
+      "is_active": true,
+      "email": "juan.perez@sushigo.com",
+      "phone": "5512345678",
+      "roles": ["cook", "kitchen-assistant"],
+      "employment_periods": [
+        {
+          "id": "01JKXYZ9876543210ZYXWVUTS",
+          "branch_id": 1,
+          "branch": {
+            "id": 1,
+            "name": "SushiGo Centro",
+            "code": "CENTRO"
+          },
+          "start_date": "2026-01-15",
+          "end_date": null,
+          "is_active": true,
+          "termination_reason": null
+        }
+      ],
+      "active_employment_periods_count": 1,
+      "meta": null,
+      "created_at": "2026-01-15T14:30:00+00:00",
+      "updated_at": "2026-02-20T10:15:00+00:00"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 1,
+    "path": "https://api.sushigo.local/api/v1/employees",
+    "per_page": 15,
+    "to": 1,
+    "total": 1
+  },
+  "links": {
+    "first": "https://api.sushigo.local/api/v1/employees?page=1",
+    "last": "https://api.sushigo.local/api/v1/employees?page=1",
+    "prev": null,
+    "next": null
+  }
+}
+```
+
+## Related Endpoints
+
+- [Create Employee](/api/employees/create) - Create a new employee
+- [Update Employee](/api/employees/update) - Update employee details
+- [Employee Wages](/api/employees/wages) - Manage employee wage history

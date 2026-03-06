@@ -1,0 +1,430 @@
+---
+title: "Employee Wages"
+description: "Manage employee wage history and hourly rates"
+api: "GET /api/v1/employees/{id}/wages"
+---
+
+## Overview
+
+Employee wage history tracks hourly rates and scheduled weekly hours over time. Each wage record has an effective date range, allowing historical tracking and future planning of compensation changes.
+
+<Info>
+  The system uses hourly rates to calculate payroll, overtime, and time-off compensation. Weekly scheduled hours are used for full-time equivalency calculations.
+</Info>
+
+## List Employee Wages
+
+Retrieve all wage history records for a specific employee, ordered by effective date (most recent first).
+
+### Endpoint
+
+```
+GET /api/v1/employees/{id}/wages
+```
+
+### Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from OAuth2 authentication
+</ParamField>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Employee public identifier (ULID format)
+  
+  **Example**: `"01JKXYZ1234567890ABCDEFGH"`
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (200)
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of wage history objects, ordered by `effective_from` descending (most recent first)
+  
+  <Expandable title="Wage History Object">
+    <ResponseField name="id" type="string">
+      Wage history public identifier (ULID)
+    </ResponseField>
+    
+    <ResponseField name="employee_id" type="integer">
+      Internal employee ID (for reference)
+    </ResponseField>
+    
+    <ResponseField name="hourly_rate" type="number">
+      Hourly wage rate in local currency. Must be greater than zero.
+      
+      **Format**: Decimal with 2 decimal places
+      
+      **Example**: `125.00` (MXN per hour)
+    </ResponseField>
+    
+    <ResponseField name="weekly_scheduled_hours" type="number">
+      Scheduled weekly hours. Must be greater than zero.
+      
+      **Format**: Decimal with 2 decimal places
+      
+      **Example**: `48.00` (full-time in Mexico)
+    </ResponseField>
+    
+    <ResponseField name="effective_from" type="string">
+      Start date when this wage becomes effective
+      
+      **Format**: YYYY-MM-DD
+      
+      **Example**: `"2026-01-01"`
+    </ResponseField>
+    
+    <ResponseField name="effective_to" type="string" nullable>
+      End date when this wage stops being effective. `null` indicates the current active wage.
+      
+      **Format**: YYYY-MM-DD or `null`
+      
+      **Example**: `"2026-12-31"` or `null`
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="string">
+      ISO 8601 timestamp when the record was created (UTC)
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="string">
+      ISO 8601 timestamp when the record was last updated (UTC)
+    </ResponseField>
+    
+    <ResponseField name="deleted_at" type="string" nullable>
+      ISO 8601 timestamp when the record was soft-deleted (UTC), or `null` if active
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X GET "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH/wages" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Response Example
+
+```json
+{
+  "status": 200,
+  "data": [
+    {
+      "id": "01JKXYZABC1234567890DEFGH",
+      "employee_id": 5,
+      "hourly_rate": "150.00",
+      "weekly_scheduled_hours": "48.00",
+      "effective_from": "2026-03-01",
+      "effective_to": null,
+      "created_at": "2026-02-15T10:00:00+00:00",
+      "updated_at": "2026-02-15T10:00:00+00:00",
+      "deleted_at": null
+    },
+    {
+      "id": "01JKXYZDEF9876543210ZYXWV",
+      "employee_id": 5,
+      "hourly_rate": "125.00",
+      "weekly_scheduled_hours": "48.00",
+      "effective_from": "2026-01-01",
+      "effective_to": "2026-02-28",
+      "created_at": "2025-12-20T14:30:00+00:00",
+      "updated_at": "2026-02-15T10:00:00+00:00",
+      "deleted_at": null
+    }
+  ]
+}
+```
+
+## Create Wage Record
+
+Add a new wage history record for an employee. The system automatically closes the previous wage record by setting its `effective_to` date.
+
+### Endpoint
+
+```
+POST /api/v1/employees/{id}/wages
+```
+
+### Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from OAuth2 authentication
+  
+  **Permission required**: `employees.update`
+</ParamField>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Employee public identifier (ULID format)
+  
+  **Example**: `"01JKXYZ1234567890ABCDEFGH"`
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="hourly_rate" type="number" required>
+  Hourly wage rate in local currency. Must be greater than zero.
+  
+  **Format**: Numeric (stored with 2 decimal places)
+  
+  **Example**: `150.00`
+  
+  <Warning>Zero or negative rates are not allowed.</Warning>
+</ParamField>
+
+<ParamField body="weekly_scheduled_hours" type="number" required>
+  Scheduled weekly hours. Must be greater than zero.
+  
+  **Format**: Numeric (stored with 2 decimal places)
+  
+  **Example**: `48.00`
+  
+  <Info>
+    In Mexico, the standard full-time workweek is 48 hours. Part-time employees may have fewer hours.
+  </Info>
+</ParamField>
+
+<ParamField body="effective_from" type="string" required>
+  Date when this wage becomes effective. Can be a past date (for corrections) or future date (for planned raises).
+  
+  **Format**: YYYY-MM-DD
+  
+  **Example**: `"2026-03-01"`
+</ParamField>
+
+<ParamField body="effective_to" type="string">
+  Optional end date for this wage record. Typically left `null` for open-ended wages.
+  
+  **Format**: YYYY-MM-DD or omit
+  
+  **Validation**: Must be on or after `effective_from`
+  
+  **Example**: `"2026-12-31"` or omit
+  
+  <Note>
+    When creating a new wage record, the system usually auto-closes the previous record. Manually setting `effective_to` is uncommon.
+  </Note>
+</ParamField>
+
+### Behavior
+
+When a new wage record is created:
+
+1. The new record is saved with the specified `effective_from` and `effective_to` (if provided)
+2. If a previous wage record exists that overlaps with the new record's `effective_from`, its `effective_to` is automatically set to one day before the new record's `effective_from`
+
+<Warning>
+  Creating overlapping wage records may produce unexpected results. Always verify the effective date range before creating a new record.
+</Warning>
+
+### Example
+
+<Tabs>
+  <Tab title="Create current wage">
+    ```bash
+    curl -X POST "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH/wages" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "hourly_rate": 150.00,
+        "weekly_scheduled_hours": 48.00,
+        "effective_from": "2026-03-01"
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="Create future wage">
+    ```bash
+    curl -X POST "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH/wages" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "hourly_rate": 175.00,
+        "weekly_scheduled_hours": 48.00,
+        "effective_from": "2027-01-01"
+      }'
+    ```
+    
+    This creates a future raise scheduled for January 1, 2027.
+  </Tab>
+  
+  <Tab title="Create historical correction">
+    ```bash
+    curl -X POST "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH/wages" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "hourly_rate": 120.00,
+        "weekly_scheduled_hours": 40.00,
+        "effective_from": "2025-06-01",
+        "effective_to": "2025-12-31"
+      }'
+    ```
+    
+    This corrects a past wage record with explicit start and end dates.
+  </Tab>
+  
+  <Tab title="Part-time employee">
+    ```bash
+    curl -X POST "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH/wages" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "hourly_rate": 130.00,
+        "weekly_scheduled_hours": 24.00,
+        "effective_from": "2026-03-01"
+      }'
+    ```
+    
+    This creates a wage record for a part-time employee working 24 hours per week.
+  </Tab>
+</Tabs>
+
+### Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (201 for created)
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The created wage history object (same structure as in List Wages)
+</ResponseField>
+
+### Response Example
+
+```json
+{
+  "status": 201,
+  "data": {
+    "id": "01JKXYZABC1234567890DEFGH",
+    "employee_id": 5,
+    "hourly_rate": "150.00",
+    "weekly_scheduled_hours": "48.00",
+    "effective_from": "2026-03-01",
+    "effective_to": null,
+    "created_at": "2026-02-15T10:00:00+00:00",
+    "updated_at": "2026-02-15T10:00:00+00:00",
+    "deleted_at": null
+  }
+}
+```
+
+### Errors
+
+<ResponseField name="401" type="object">
+  Unauthorized - Missing or invalid authentication token
+</ResponseField>
+
+<ResponseField name="403" type="object">
+  Forbidden - User lacks `employees.update` permission
+</ResponseField>
+
+<ResponseField name="404" type="object">
+  Employee not found
+</ResponseField>
+
+<ResponseField name="422" type="object">
+  Validation error
+  
+  Common validation errors:
+  - `hourly_rate` must be greater than 0
+  - `weekly_scheduled_hours` must be greater than 0
+  - `effective_to` must be on or after `effective_from`
+  - Required fields missing
+</ResponseField>
+
+## Wage Calculations
+
+The wage history records are used throughout the system for various calculations:
+
+### Per-Minute Rate
+
+The per-minute rate is calculated as:
+
+```
+minute_rate = hourly_rate / 60
+```
+
+**Example**: An hourly rate of `150.00 MXN/hr` equals `2.50 MXN/min`
+
+This is used for:
+- Calculating pay for partial hours worked
+- Overtime compensation
+- Time-off accruals
+
+### Full-Time Equivalency (FTE)
+
+FTE is calculated as:
+
+```
+FTE = weekly_scheduled_hours / 48
+```
+
+Where 48 is the standard full-time workweek in Mexico.
+
+**Examples**:
+- 48 hours/week = 1.0 FTE (full-time)
+- 24 hours/week = 0.5 FTE (half-time)
+- 40 hours/week = 0.833 FTE (83.3% time)
+
+This is used for:
+- Benefits eligibility
+- Time-off accrual rates
+- Headcount reporting
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="When to create a new wage record">
+    Create a new wage record when:
+    - Employee receives a raise or rate adjustment
+    - Employee's scheduled hours change (e.g., part-time to full-time)
+    - Correcting historical wage data
+    - Planning future wage increases
+    
+    Do NOT create a wage record for:
+    - One-time bonuses (use separate bonus records)
+    - Overtime pay (calculated automatically from hourly rate)
+    - Temporary rate changes (use effective_to date instead)
+  </Accordion>
+  
+  <Accordion title="Setting effective dates">
+    - Use the date the wage change takes effect (not when it was approved)
+    - For raises, typically set to the first day of a pay period
+    - Future-dated wages are allowed for planned increases
+    - Past-dated wages are allowed for corrections (use with caution)
+    - Leave `effective_to` as `null` for current wages
+    - The system auto-closes previous wages when you create a new one
+  </Accordion>
+  
+  <Accordion title="Handling wage corrections">
+    If you need to correct a wage error:
+    
+    1. **For current wages**: Create a new wage with the correct rate and current `effective_from`
+    2. **For historical wages**: Create a new record with both `effective_from` and `effective_to` covering the correction period
+    3. **Never delete wage records** - they may be referenced by payroll calculations
+    4. Use soft-delete only if absolutely necessary (requires database access)
+  </Accordion>
+  
+  <Accordion title="Part-time vs. full-time">
+    Always set `weekly_scheduled_hours` to reflect the employee's actual schedule:
+    
+    - **Full-time**: 48 hours (Mexico standard)
+    - **Part-time**: Actual hours (e.g., 24, 30, 40)
+    - **Variable hours**: Use average expected hours
+    
+    The hourly rate should be the same regardless of full-time or part-time status. The system uses `weekly_scheduled_hours` to calculate FTE for benefits.
+  </Accordion>
+</AccordionGroup>
+
+## Related Endpoints
+
+- [List Employees](/api/employees/list) - Retrieve all employees
+- [Create Employee](/api/employees/create) - Create a new employee
+- [Update Employee](/api/employees/update) - Update employee details
+- [Employee Attendance](/api/employees/attendance) - Track employee attendance

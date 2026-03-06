@@ -1,0 +1,302 @@
+---
+title: Environment Setup
+description: Setting up your local development environment with VS Code and Docker
+---
+
+## Overview
+
+SushiGo is a monorepo project with a Laravel API and React webapp. Development is done inside a Docker container using VS Code's devcontainer feature for a consistent, isolated environment.
+
+## Prerequisites
+
+Before you begin, ensure you have installed:
+
+- **Docker Desktop** (latest version)
+- **VS Code** with the "Dev Containers" extension (`ms-vscode-remote.remote-containers`)
+- **Git** for version control
+
+## Quick Start
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone <repository-url> sushigo
+    cd sushigo
+    ```
+  </Step>
+
+  <Step title="Configure hosts file">
+    Add the following entries to your system's hosts file:
+
+    **Linux/macOS:** `/etc/hosts`  
+    **Windows:** `C:\Windows\System32\drivers\etc\hosts`
+
+    ```
+    127.0.0.1  sushigo.local
+    127.0.0.1  api.sushigo.local
+    127.0.0.1  devtest.sushigo.local
+    127.0.0.1  devtest.api.sushigo.local
+    ```
+
+    <Note>
+      On Linux/macOS, use: `sudo nano /etc/hosts`
+    </Note>
+  </Step>
+
+  <Step title="Open in VS Code">
+    ```bash
+    code .
+    ```
+
+    VS Code will detect the `.devcontainer/devcontainer.json` file and prompt you to reopen in container.
+  </Step>
+
+  <Step title="Reopen in Container">
+    Click **"Reopen in Container"** when prompted, or use:
+    - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
+    - Select **"Dev Containers: Reopen in Container"**
+
+    The first build will take several minutes to pull images and install dependencies.
+  </Step>
+
+  <Step title="Wait for container initialization">
+    The container will automatically:
+    - Install PHP dependencies via Composer
+    - Install Node.js dependencies via npm
+    - Run database migrations
+    - Seed the database
+    - Generate Swagger documentation
+  </Step>
+
+  <Step title="Verify setup">
+    Once the container is running, open the integrated terminal and verify:
+
+    ```bash
+    # Check API health
+    curl http://localhost/api/v1/health
+
+    # Check database connection
+    docker exec -it dev_container bash -c "cd /app/code/api && php artisan migrate:status"
+    ```
+  </Step>
+</Steps>
+
+## Container Structure
+
+The monorepo maps to the following paths inside `dev_container`:
+
+| Sub-project | Host path | Container path |
+|-------------|-----------|----------------|
+| API (Laravel) | `code/api/` | `/app/code/api` |
+| Webapp (React) | `code/webapp/` | `/app/code/webapp` |
+| Documentation | `doc/` | `/app/doc` |
+
+<Warning>
+  All `php artisan` commands **must** run from `/app/code/api` inside the container.
+</Warning>
+
+## Access URLs
+
+After setup, you can access:
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Webapp** | https://sushigo.local | admin@sushigo.com / admin123456 |
+| **Webapp (direct Vite)** | http://localhost:5173 | - |
+| **API** | https://api.sushigo.local/api/v1 | - |
+| **Swagger UI** | http://localhost:8080/api/documentation | - |
+| **PgAdmin** | http://localhost:5050 | admin@admin.com / admin |
+| **Mailhog** | http://localhost:8025 | - |
+
+### Default Test Users
+
+| Role | Email | Password |
+|------|-------|----------|
+| Super Admin | superadmin@sushigo.com | admin123456 |
+| Admin | admin@sushigo.com | admin123456 |
+| Inventory Manager | inventory@sushigo.com | inventory123456 |
+
+## VS Code Extensions
+
+The devcontainer automatically installs these recommended extensions:
+
+### AI & Productivity
+- GitHub Copilot
+- GitHub Copilot Chat
+- ChatGPT (OpenAI)
+
+### Laravel / PHP
+- Laravel Extra Intellisense
+- Laravel Goto Controller
+- Laravel Artisan
+- Intelephense (PHP IntelliSense)
+- Laravel Blade
+
+### React / JavaScript / TypeScript
+- ESLint
+- Prettier
+- ES7+ React/Redux snippets
+- Auto Rename Tag
+
+### DevOps & Tools
+- Docker
+- Remote Containers
+- GitLens
+
+## SSL Certificates
+
+The development environment uses self-signed SSL certificates for HTTPS.
+
+### Installing Root Certificate
+
+<Tabs>
+  <Tab title="macOS">
+    ```bash
+    # Trust the root CA
+    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain \
+      docker/app/config/dev/cert/rootCA.pem
+    ```
+  </Tab>
+
+  <Tab title="Linux (Ubuntu/Debian)">
+    ```bash
+    # Copy certificate
+    sudo cp docker/app/config/dev/cert/rootCA.pem /usr/local/share/ca-certificates/sushigo-rootCA.crt
+
+    # Update certificate store
+    sudo update-ca-certificates
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    1. Double-click `docker/app/config/dev/cert/rootCA.pem`
+    2. Click **Install Certificate**
+    3. Choose **Local Machine**
+    4. Select **Place all certificates in the following store**
+    5. Browse and select **Trusted Root Certification Authorities**
+    6. Restart your browser
+  </Tab>
+</Tabs>
+
+### Clearing Chrome HSTS Cache
+
+If you see SSL errors in Chrome, clear the HSTS cache:
+
+<Steps>
+  <Step title="Open Chrome HSTS settings">
+    Navigate to: `chrome://net-internals/#hsts`
+  </Step>
+
+  <Step title="Delete domain security policies">
+    In the "Delete domain security policies" section:
+    - Enter: `localhost` or `sushigo.local`
+    - Click **Delete**
+  </Step>
+
+  <Step title="Restart containers">
+    ```bash
+    docker compose restart dev
+    ```
+  </Step>
+</Steps>
+
+Alternatively, use Chrome's Incognito mode: `Cmd+Shift+N` (macOS) or `Ctrl+Shift+N` (Windows/Linux)
+
+## Database Setup
+
+### Creating Test Database
+
+The test database is created automatically, but if you need to recreate it manually:
+
+```bash
+docker exec -it dev_container psql -h pgsql -U admin -d mydb -c "CREATE DATABASE mydb_test;"
+```
+
+### Running Migrations and Seeders
+
+```bash
+# Inside the container
+cd /app/code/api
+
+# Run migrations
+php artisan migrate
+
+# Seed database
+php artisan db:seed
+
+# Fresh migration with seeding
+php artisan migrate:fresh --seed
+
+# Check seeder status
+php artisan seeder:status
+```
+
+## Common Setup Issues
+
+<AccordionGroup>
+  <Accordion title="Port already in use">
+    If ports 80, 443, 5432, or 5173 are already in use:
+
+    ```bash
+    # Find process using port
+    lsof -i :5432  # macOS/Linux
+    netstat -ano | findstr :5432  # Windows
+
+    # Stop conflicting services
+    # Then restart containers
+    docker compose down
+    docker compose up --build
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied errors">
+    If you encounter permission errors in the container:
+
+    ```bash
+    # Fix Laravel storage permissions
+    docker exec -it dev_container bash -c "cd /app/code/api && chmod -R 777 storage bootstrap/cache"
+
+    # Fix node_modules permissions
+    docker exec -it dev_container bash -c "cd /app/code/webapp && npm install"
+    ```
+  </Accordion>
+
+  <Accordion title="Database connection refused">
+    Wait for PostgreSQL to be fully ready:
+
+    ```bash
+    # Check PostgreSQL health
+    docker exec -it postgres_container pg_isready -U admin -d mydb
+
+    # View PostgreSQL logs
+    docker logs postgres_container
+    ```
+  </Accordion>
+
+  <Accordion title="Vite HMR not working">
+    If Hot Module Replacement doesn't work:
+
+    1. Ensure `sushigo.local` is in your hosts file
+    2. Check `VITE_HMR_HOST` environment variable in `docker-compose.yml`
+    3. Restart the dev container:
+       ```bash
+       docker compose restart dev
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Docker Compose" icon="docker" href="/development/docker-compose">
+    Learn about the Docker services architecture
+  </Card>
+  
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Run backend, frontend, and E2E tests
+  </Card>
+  
+  <Card title="Conventions" icon="book" href="/development/conventions">
+    Follow project code and Git conventions
+  </Card>
+</CardGroup>

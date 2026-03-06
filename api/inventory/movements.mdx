@@ -1,0 +1,387 @@
+---
+title: Stock Movements
+description: Register inventory movements (opening balance, stock out)
+---
+
+Stock movements track all inventory changes. Each movement creates ledger entries and updates stock levels automatically.
+
+## Register Opening Balance
+
+Register initial stock when setting up inventory or correcting balances. Creates a stock movement with reason `OPENING_BALANCE`.
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.sushigo.com/api/v1/inventory/opening-balance" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inventory_location_id": 1,
+    "item_variant_id": 5,
+    "quantity": 100,
+    "uom_id": 3,
+    "unit_cost": 27.50,
+    "reference": "INV-2026-001",
+    "notes": "Initial inventory count"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/inventory/opening-balance', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    inventory_location_id: 1,
+    item_variant_id: 5,
+    quantity: 100,
+    uom_id: 3,
+    unit_cost: 27.50,
+    reference: 'INV-2026-001'
+  })
+});
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="inventory_location_id" type="integer" required>
+  Target inventory location ID
+</ParamField>
+
+<ParamField body="item_variant_id" type="integer" required>
+  Item variant ID
+</ParamField>
+
+<ParamField body="quantity" type="number" required>
+  Quantity in the specified UOM (must be > 0)
+</ParamField>
+
+<ParamField body="uom_id" type="integer" required>
+  Unit of measure ID for the quantity
+</ParamField>
+
+<ParamField body="unit_cost" type="number" required>
+  Cost per unit in the specified UOM (must be ≥ 0)
+</ParamField>
+
+<ParamField body="reference" type="string">
+  Reference number (e.g., physical count document number)
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Additional notes about this opening balance
+</ParamField>
+
+### How It Works
+
+1. The system converts the quantity to the variant's base UOM using UOM conversions
+2. Creates a `StockMovement` with reason `OPENING_BALANCE` and status `POSTED`
+3. Creates movement lines with FIFO costing data
+4. Updates the `Stock` record for the location/variant (increases `on_hand`)
+5. Updates the variant's `avg_unit_cost` using weighted average
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="Movement Details">
+    <ResponseField name="id" type="integer">Movement ID</ResponseField>
+    <ResponseField name="inventory_location_id" type="integer">Target location ID</ResponseField>
+    <ResponseField name="item_variant_id" type="integer">Variant ID</ResponseField>
+    <ResponseField name="quantity" type="number">Original quantity entered</ResponseField>
+    <ResponseField name="uom" type="string">Original UOM code</ResponseField>
+    <ResponseField name="base_quantity" type="number">Quantity converted to base UOM</ResponseField>
+    <ResponseField name="base_uom" type="string">Base UOM code</ResponseField>
+    <ResponseField name="unit_cost" type="number">Cost per unit (original UOM)</ResponseField>
+    <ResponseField name="base_cost" type="number">Cost per unit (base UOM)</ResponseField>
+    <ResponseField name="reference" type="string">Reference number</ResponseField>
+    <ResponseField name="notes" type="string">Notes</ResponseField>
+    <ResponseField name="status" type="string">Always `POSTED` for opening balance</ResponseField>
+    <ResponseField name="posted_at" type="string">Posted timestamp (UTC ISO 8601)</ResponseField>
+    <ResponseField name="location" type="object">Location details (id, name, type)</ResponseField>
+    <ResponseField name="variant" type="object">Variant details (id, code, name, item_name, avg_unit_cost)</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 201,
+  "data": {
+    "id": 123,
+    "inventory_location_id": 1,
+    "item_variant_id": 5,
+    "quantity": 100.0,
+    "uom": "KG",
+    "base_quantity": 100.0,
+    "base_uom": "KG",
+    "unit_cost": 27.50,
+    "base_cost": 27.50,
+    "reference": "INV-2026-001",
+    "notes": "Initial inventory count",
+    "status": "POSTED",
+    "posted_at": "2026-03-06T14:45:00+00:00",
+    "location": {
+      "id": 1,
+      "name": "Almacén Principal",
+      "type": "MAIN"
+    },
+    "variant": {
+      "id": 5,
+      "code": "ARR-KG",
+      "name": "Arroz Premium 1kg",
+      "item_name": "Arroz Sushi Premium",
+      "avg_unit_cost": 27.50
+    }
+  }
+}
+```
+
+### Errors
+
+- `422` - Validation error (invalid IDs, negative quantity, etc.)
+- `400` - Business logic error (e.g., no UOM conversion found between entry UOM and variant base UOM)
+- `403` - Insufficient permissions
+
+<Note>
+**UOM Conversion:**
+If the entry UOM differs from the variant's base UOM, a valid UOM conversion must exist. For example, if the variant's base UOM is `KG` and you enter quantity in `GR` (grams), there must be a `GR → KG` conversion defined.
+</Note>
+
+---
+
+## Register Stock Out
+
+Register stock consumption or sale. Reduces stock using FIFO costing.
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.sushigo.com/api/v1/inventory/stock-out" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inventory_location_id": 1,
+    "item_variant_id": 5,
+    "qty": 10,
+    "uom_id": 3,
+    "reason": "SALE",
+    "sale_price": 35.00,
+    "reference": "SALE-2026-042",
+    "notes": "Venta mostrador"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/inventory/stock-out', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    inventory_location_id: 1,
+    item_variant_id: 5,
+    qty: 10,
+    uom_id: 3,
+    reason: 'SALE',
+    sale_price: 35.00
+  })
+});
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="inventory_location_id" type="integer" required>
+  Source inventory location ID (where stock is deducted from)
+</ParamField>
+
+<ParamField body="item_variant_id" type="integer" required>
+  Item variant ID
+</ParamField>
+
+<ParamField body="qty" type="number" required>
+  Quantity to deduct in the specified UOM (must be > 0)
+</ParamField>
+
+<ParamField body="uom_id" type="integer" required>
+  Unit of measure ID for the quantity
+</ParamField>
+
+<ParamField body="reason" type="string" required>
+  Reason for stock out: `SALE`, `CONSUMPTION`, `WASTE`, `ADJUSTMENT`, `TRANSFER`, or `OTHER`
+</ParamField>
+
+<ParamField body="sale_price" type="number">
+  Sale price per unit (for `SALE` reason, used to calculate profit margin)
+</ParamField>
+
+<ParamField body="reference" type="string">
+  Reference number (e.g., sale order number, production order)
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Additional notes about this movement
+</ParamField>
+
+### How It Works
+
+1. Validates that sufficient stock is available (`available >= requested qty`)
+2. Converts quantity to base UOM
+3. Applies FIFO costing: consumes oldest stock first based on movement lines
+4. Creates `StockMovement` with specified reason and status `POSTED`
+5. Creates movement lines with cost and profit data
+6. Updates `Stock` record (decreases `on_hand`)
+7. If reason is `SALE` and `sale_price` is provided, calculates profit margin
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="Stock Out Movement">
+    <ResponseField name="id" type="integer">Movement ID</ResponseField>
+    <ResponseField name="from_location_id" type="integer">Source location ID</ResponseField>
+    <ResponseField name="to_location_id" type="integer">Always null for stock out</ResponseField>
+    <ResponseField name="item_variant_id" type="integer">Variant ID</ResponseField>
+    <ResponseField name="user_id" type="integer">User who registered the movement</ResponseField>
+    <ResponseField name="qty" type="number">Quantity (base UOM)</ResponseField>
+    <ResponseField name="reason" type="string">Movement reason</ResponseField>
+    <ResponseField name="status" type="string">Always `POSTED`</ResponseField>
+    <ResponseField name="reference" type="string">Reference number</ResponseField>
+    <ResponseField name="notes" type="string">Notes</ResponseField>
+    <ResponseField name="meta" type="object">
+      Metadata including original_qty, original_uom, unit_cost, sale_price, profit_margin
+    </ResponseField>
+    <ResponseField name="posted_at" type="string">Posted timestamp</ResponseField>
+    <ResponseField name="lines" type="array">
+      Movement lines with FIFO costing details (qty, base_qty, unit_cost, line_total, sale_price, profit_margin, profit_total)
+    </ResponseField>
+    <ResponseField name="from_location" type="object">Source location details</ResponseField>
+    <ResponseField name="item_variant" type="object">Variant details with item info</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 456,
+    "from_location_id": 1,
+    "to_location_id": null,
+    "item_variant_id": 5,
+    "user_id": 1,
+    "qty": "10.0000",
+    "reason": "SALE",
+    "status": "POSTED",
+    "reference": "SALE-2026-042",
+    "notes": "Venta mostrador",
+    "meta": {
+      "original_qty": 10,
+      "original_uom": "KG",
+      "unit_cost": 27.80,
+      "sale_price": 35.00,
+      "profit_margin": 7.20
+    },
+    "posted_at": "2026-03-06T15:20:00+00:00",
+    "lines": [
+      {
+        "id": 789,
+        "qty": "10.0000",
+        "base_qty": "10.0000",
+        "unit_cost": "27.8000",
+        "line_total": "278.0000",
+        "sale_price": "35.0000",
+        "sale_total": "350.0000",
+        "profit_margin": "7.2000",
+        "profit_total": "72.0000"
+      }
+    ],
+    "from_location": {
+      "id": 1,
+      "name": "Almacén Principal"
+    },
+    "item_variant": {
+      "id": 5,
+      "sku": "ARR-KG",
+      "name": "Arroz Premium 1kg",
+      "item": {
+        "id": 1,
+        "name": "Arroz Sushi Premium"
+      }
+    }
+  },
+  "message": "Stock out movement registered successfully"
+}
+```
+
+### Errors
+
+- `422` - Validation error (invalid IDs, negative quantity, invalid reason)
+- `400` - Business logic error:
+  - Insufficient stock: `"Insufficient stock. Available: 5, Requested: 10"`
+  - No UOM conversion found
+  - Location not found or inactive
+- `403` - Insufficient permissions
+
+<Warning>
+**Stock Availability:**
+The system validates that `available` quantity (on_hand - reserved) is sufficient. If you need to consume reserved stock, you must unreserve it first.
+</Warning>
+
+---
+
+## Movement Reasons
+
+<CardGroup cols={2}>
+  <Card title="SALE" icon="cart-shopping">
+    Product sold to a customer. Use `sale_price` to track revenue and profit margin.
+  </Card>
+  
+  <Card title="CONSUMPTION" icon="fire-burner">
+    Material consumed in production or operations (e.g., ingredients used in recipes).
+  </Card>
+  
+  <Card title="WASTE" icon="trash">
+    Stock lost due to spoilage, damage, or expiration.
+  </Card>
+  
+  <Card title="ADJUSTMENT" icon="sliders">
+    Inventory adjustment (e.g., after physical count discrepancy).
+  </Card>
+  
+  <Card title="TRANSFER" icon="right-left">
+    Stock transferred to another location (creates corresponding IN movement at destination).
+  </Card>
+  
+  <Card title="OTHER" icon="ellipsis">
+    Other reasons not covered above. Use `notes` to clarify.
+  </Card>
+</CardGroup>
+
+---
+
+## FIFO Costing
+
+The system uses **First-In-First-Out (FIFO)** costing for stock out movements:
+
+1. When stock is consumed, the system finds the oldest movement lines with remaining quantity
+2. Deducts from oldest lines first until the requested quantity is fulfilled
+3. Each movement line tracks the original unit cost from when stock was received
+4. This ensures accurate cost of goods sold (COGS) calculation
+
+**Example:**
+If you have:
+- 50 kg received at $25/kg on Jan 1
+- 100 kg received at $28/kg on Jan 15
+
+And you consume 75 kg on Jan 20:
+- 50 kg costed at $25/kg (from Jan 1 batch)
+- 25 kg costed at $28/kg (from Jan 15 batch)
+- Total COGS: (50 × $25) + (25 × $28) = $1,950
+
+<Tip>
+For profit analysis, compare the `line_total` (cost) with `sale_total` (revenue) in the movement lines response.
+</Tip>

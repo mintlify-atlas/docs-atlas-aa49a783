@@ -1,80 +1,194 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quickstart'
+description: 'Get SushiGo running locally with Docker Compose in under 5 minutes'
 ---
 
-## Get started in three steps
+Get your SushiGo development environment up and running in minutes with Docker Compose. This guide will have you exploring the platform quickly.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, ensure you have the following installed:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+- **Docker Engine** (20.10 or higher)
+- **Docker Compose** (2.0 or higher)
+- **Git** (to clone the repository)
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Docker Desktop for Mac and Windows includes both Docker Engine and Docker Compose.
+</Note>
+
+## Quick Setup
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone <repository-url>
+    cd sushigo
+    ```
+  </Step>
+
+  <Step title="Start the stack">
+    Launch all services with a single command:
+    
+    ```bash
+    docker compose up --build
+    ```
+    
+    The initialization script will automatically:
+    - Install Composer and NPM dependencies
+    - Wait for PostgreSQL to be ready
+    - Run database migrations
+    - Execute seeders for initial data
+    - Generate Laravel Passport OAuth keys
+    - Generate Swagger API documentation
+    - Start Apache and Vite dev server
+    
+    <Note>
+      First-time setup takes 2-3 minutes while dependencies are installed and the database is initialized.
+    </Note>
+  </Step>
+
+  <Step title="Access the application">
+    Once the stack is running, you can access:
+    
+    | Service | URL | Description |
+    |---------|-----|-------------|
+    | **Webapp** | https://sushigo.local | React admin dashboard (via nginx) |
+    | **Vite Dev** | http://localhost:5173 | Direct Vite dev server with HMR |
+    | **API** | https://api.sushigo.local/api/v1 | Laravel REST API |
+    | **Swagger UI** | http://localhost:8080/api/documentation | Interactive API documentation |
+    | **PgAdmin** | http://localhost:5050 | PostgreSQL admin interface |
+    | **MailHog** | http://localhost:8025 | Email testing tool |
+  </Step>
+
+  <Step title="Login with default credentials">
+    Use the pre-seeded admin account to access the webapp:
+    
+    ```
+    Email: admin@sushigo.com
+    Password: admin123456
+    ```
+    
+    <Warning>
+      Change these credentials in production environments. Additional test users are available - see the [Installation](/installation) guide for details.
+    </Warning>
+  </Step>
+</Steps>
+
+## Verify Your Setup
+
+Check that all services are running correctly:
+
+```bash
+# Check container status
+docker compose ps
+
+# View logs
+docker compose logs -f dev
+
+# Test API health endpoint
+curl http://localhost:8080/api/v1/health
+```
+
+## Quick Test Credentials
+
+The default database includes several pre-configured users for testing:
+
+| Role | Email | Password |
+|------|-------|----------|
+| Super Admin | superadmin@sushigo.com | admin123456 |
+| Admin | admin@sushigo.com | admin123456 |
+| Inventory Manager | inventory@sushigo.com | inventory123456 |
+
+## Common Commands
+
+```bash
+# Stop all services
+docker compose down
+
+# Restart services
+docker compose restart
+
+# View API logs
+docker compose logs -f dev
+
+# Access API container shell
+docker exec -it dev_container bash
+
+# Run database migrations
+docker exec -it dev_container bash -c "cd /app/code/api && php artisan migrate"
+
+# Check seeder status
+docker exec -it dev_container bash -c "cd /app/code/api && php artisan seeder:status"
+
+# Regenerate API documentation
+docker exec -it dev_container bash -c "cd /app/code/api && php artisan l5-swagger:generate"
+```
+
+## Next Steps
+
+Now that you have SushiGo running locally, explore these resources:
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/api/auth/login">
+    Explore the REST API endpoints and test them with Swagger UI
+  </Card>
+  <Card title="Architecture" icon="building" href="/core/architecture">
+    Understand the system design and domain model
+  </Card>
+  <Card title="Development Guide" icon="laptop-code" href="/development/environment-setup">
+    Learn about the tech stack and development workflows
+  </Card>
+  <Card title="Testing" icon="flask" href="/testing">
+    Run tests and write new test cases
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Port conflicts">
+    If you see port conflict errors, check if other services are using ports 80, 443, 5173, 5432, 5050, or 8025.
+    
+    ```bash
+    # Check what's using a port (example for port 5432)
+    lsof -i :5432
+    
+    # Or use docker ps to see other running containers
+    docker ps
+    ```
+    
+    You can modify ports in the `.env` file or `docker-compose.yml`.
+  </Accordion>
+
+  <Accordion title="PostgreSQL connection failed">
+    If the API can't connect to PostgreSQL:
+    
+    1. Ensure the `pgsql` container is healthy: `docker compose ps`
+    2. Check PostgreSQL logs: `docker compose logs pgsql`
+    3. Verify credentials in `code/api/.env` match `docker-compose.yml`
+  </Accordion>
+
+  <Accordion title="Permission errors in container">
+    If you see file permission errors:
+    
+    ```bash
+    # Fix storage permissions
+    docker exec -it dev_container chown -R www-data:www-data /app/code/api/storage
+    docker exec -it dev_container chmod -R 775 /app/code/api/storage
+    ```
+  </Accordion>
+
+  <Accordion title="Passport keys not generated">
+    If OAuth authentication fails:
+    
+    ```bash
+    # Regenerate Passport keys
+    docker exec -it dev_container bash -c "cd /app/code/api && php artisan passport:keys --force"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  For detailed troubleshooting and manual setup instructions, see the [Installation Guide](/installation).
 </Note>

@@ -1,0 +1,545 @@
+---
+title: 'Attendance Tracking'
+description: 'Daily check-in/check-out, lunch breaks, and attendance report system'
+---
+
+## Overview
+
+SushiGo's attendance tracking system captures employee work time with precision, including check-in/check-out times, lunch breaks, lateness tracking, and day status classification. This data feeds into payroll calculations, punctuality bonuses, and overtime management.
+
+## Core Concepts
+
+### Attendance Record
+
+Each **Attendance** record represents one employee's work for one calendar date:
+
+```php
+'employee_id'              // Foreign key to Employee
+'date'                     // Calendar date (date only, no time)
+'check_in'                 // DateTime: arrival time
+'check_out'                // DateTime: departure time
+'lunch_start'              // DateTime: lunch break start (optional)
+'lunch_end'                // DateTime: return from lunch (optional)
+'entry_late_seconds'       // Integer: lateness at check-in (0 if on time)
+'lunch_late_seconds'       // Integer: lateness returning from lunch
+'net_worked_minutes'       // Integer: total minutes worked (excluding lunch)
+'overtime_minutes'         // Integer: minutes worked beyond schedule
+'overtime_authorized'      // Boolean: manager approved overtime for payment
+'overtime_authorized_by'   // Foreign key to User who authorized
+'overtime_authorized_at'   // DateTime: when authorization occurred
+'day_status'               // Enum: WORKED, DAY_OFF, LEAVE, etc.
+'confirmed_by'             // Foreign key to User who confirmed/validated
+'meta'                     // JSON: additional metadata
+```
+
+### Day Status Types
+
+Defined in `DayStatus` enum:
+
+| Status | Code | Description |
+|--------|------|-------------|
+| Worked | `WORKED` | Normal working day with check-in/check-out |
+| Day Off | `DAY_OFF` | Scheduled day off (no work expected) |
+| Leave | `LEAVE` | Approved leave (paid or unpaid) |
+| Vacation | `VACATION` | Approved vacation day |
+| Holiday | `HOLIDAY` | Public/company holiday |
+| Absence | `ABSENCE` | Unexcused absence |
+| Extra | `EXTRA` | Negotiated extra day (special pay) |
+
+<Info>
+Day status determines how the day is treated in payroll calculations, particularly for bonuses and rest day calculations.
+</Info>
+
+## Daily Attendance Flow
+
+### Manager's "Today" View
+
+The primary interface for attendance is the **Today View**, which shows all employees for a branch:
+
+<Steps>
+  <Step title="Manager opens Today view">
+    GET `/api/v1/attendances/today?branch_id={branch_id}`
+    
+    Returns all active employees for the branch with their attendance record for today (null if not yet recorded)
+  </Step>
+  
+  <Step title="Manager records check-ins">
+    As employees arrive, manager records check-in time for each
+  </Step>
+  
+  <Step title="Manager records lunch breaks">
+    When employees take lunch, manager records start and end times (optional)
+  </Step>
+  
+  <Step title="Manager records check-outs">
+    At end of day, manager records departure time and authorizes overtime if applicable
+  </Step>
+  
+  <Step title="System calculates metrics">
+    System automatically calculates:
+    - Lateness (entry and lunch)
+    - Net worked minutes
+    - Overtime minutes
+    - Suggests day status
+  </Step>
+</Steps>
+
+### Today View API Response
+
+<CodeGroup>
+```bash Request
+curl -X GET "/api/v1/attendances/today?branch_id=1" \
+  -H "Authorization: Bearer {token}"
+```
+
+```json Response (200 OK)
+{
+  "status": 200,
+  "data": [
+    {
+      "employee": {
+        "id": "01JCEQZ8A2KXNM3P4R5S6T7U8V",
+        "code": "EMP-001",
+        "first_name": "Juan",
+        "last_name": "Pérez",
+        "roles": ["cook"]
+      },
+      "attendance": {
+        "id": "01JCEQZ8A3ATTEND123456789",
+        "employee_id": "01JCEQZ8A2KXNM3P4R5S6T7U8V",
+        "date": "2026-03-06",
+        "check_in": "2026-03-06T08:05:00+00:00",
+        "check_out": null,
+        "lunch_start": null,
+        "lunch_end": null,
+        "entry_late_seconds": 300,
+        "lunch_late_seconds": 0,
+        "net_worked_minutes": 0,
+        "overtime_minutes": 0,
+        "overtime_authorized": false,
+        "day_status": "WORKED"
+      }
+    },
+    {
+      "employee": {
+        "id": "01JCEQZ8A2EMPLOYEE234567",
+        "code": "EMP-002",
+        "first_name": "María",
+        "last_name": "González",
+        "roles": ["kitchen-assistant"]
+      },
+      "attendance": null
+    }
+  ]
+}
+```
+</CodeGroup>
+
+<Note>
+- Employees with `attendance: null` have not checked in yet today
+- List ordered by `last_name`, `first_name` ascending
+- Only shows employees with active employment period for the specified branch
+</Note>
+
+## Lateness Tracking
+
+### Entry Lateness (Check-in)
+
+When an employee checks in, the system compares actual arrival time against their scheduled start time:
+
+```php
+public function isEntryLateDeductible(): bool
+{
+    return $this->entry_late_seconds > 1800; // > 30 minutes
+}
+```
+
+**Business Rule (RN-00, RF-15b)**:
+
+<Warning>
+If lateness **exceeds 30 minutes**, the exact number of late minutes is deducted from pay.
+
+**Formula**: minute not worked = minute not paid
+
+**Threshold**: > 30 minutes (1800 seconds). Exactly 30 minutes is NOT deductible.
+</Warning>
+
+#### Example: Lateness Calculation
+
+| Expected | Actual | Late Seconds | Late Minutes | Deductible? | Deduction |
+|----------|--------|--------------|--------------|-------------|-----------|
+| 08:00:00 | 08:15:00 | 900 | 15 | No | $0 |
+| 08:00:00 | 08:30:00 | 1800 | 30 | No | $0 |
+| 08:00:00 | 08:30:01 | 1801 | 30 | Yes | 30 min pay |
+| 08:00:00 | 09:00:00 | 3600 | 60 | Yes | 60 min pay |
+| 08:00:00 | 10:15:00 | 8100 | 135 | Yes | 135 min pay |
+
+### Lunch Return Lateness
+
+Same logic applies to returning from lunch:
+
+```php
+public function isLunchLateDeductible(): bool
+{
+    return $this->lunch_late_seconds > 1800; // > 30 minutes
+}
+```
+
+**Comparison**: Actual `lunch_end` vs scheduled lunch end time from employee's schedule
+
+### Lateness Helpers
+
+The model provides helper methods:
+
+```php
+// Convert seconds to whole minutes (floor)
+public function entryLateMinutes(): int
+{
+    return (int) floor($this->entry_late_seconds / 60);
+}
+
+public function lunchLateMinutes(): int
+{
+    return (int) floor($this->lunch_late_seconds / 60);
+}
+```
+
+## Time Calculations
+
+### Net Worked Minutes
+
+Total time worked, **excluding** lunch break:
+
+```
+net_worked_minutes = (check_out - check_in) - (lunch_end - lunch_start)
+```
+
+**Example**:
+- Check-in: 08:00
+- Lunch start: 13:00 (worked 5 hours = 300 min)
+- Lunch end: 14:00 (lunch = 1 hour = 60 min)
+- Check-out: 18:00 (worked 4 more hours = 240 min)
+- **Net worked**: 300 + 240 = 540 minutes (9 hours)
+
+### Overtime Minutes
+
+Minutes worked **beyond** scheduled hours:
+
+```
+overtime_minutes = net_worked_minutes - scheduled_minutes
+```
+
+<Info>
+Overtime is only calculated when `net_worked_minutes` exceeds the scheduled hours from the employee's schedule for that day.
+</Info>
+
+**Example**:
+- Scheduled: 8 hours (480 minutes)
+- Net worked: 540 minutes
+- **Overtime**: 540 - 480 = 60 minutes
+
+## Overtime Authorization
+
+### Business Rule (RF-47, RN-11)
+
+<Warning>
+Overtime is **paid ONLY if the Manager authorizes it** when recording check-out or confirming the day.
+
+If not authorized, overtime remains as **historical record** but does not accumulate in overtime bank or get paid.
+</Warning>
+
+### Authorization Fields
+
+```php
+'overtime_authorized'      // Boolean: true if authorized for payment
+'overtime_authorized_by'   // User ID of manager who authorized
+'overtime_authorized_at'   // Timestamp of authorization
+```
+
+### Authorization Flow
+
+<Steps>
+  <Step title="Employee works overtime">
+    Employee stays beyond scheduled hours (e.g., 10 hours instead of 8)
+  </Step>
+  
+  <Step title="Manager records check-out">
+    Manager sees overtime detected (2 hours)
+  </Step>
+  
+  <Step title="Manager decides">
+    **Option A**: Authorize for payment → Sets `overtime_authorized = true`
+    
+    **Option B**: Don't authorize → Sets `overtime_authorized = false`
+  </Step>
+  
+  <Step title="System processes">
+    **If authorized**: Overtime added to payroll or overtime bank
+    
+    **If not authorized**: Overtime stored as history only, no payment
+  </Step>
+</Steps>
+
+### Overtime Valuation (RF-47b, RF-47c, DC-03)
+
+When overtime is authorized for payment, valuation method is determined by employee's configuration:
+
+<Tabs>
+  <Tab title="Method 1: Proportional to Wage">
+    Overtime valued using LFT (Mexican labor law) criteria:
+    
+    - Hours 1-9 (first overtime hours): 2× hourly rate
+    - Hours 10+ (excessive overtime): 3× hourly rate
+    
+    **Example** (8-hour schedule, $100/hr):
+    - Regular: 8 hours × $100 = $800
+    - Overtime (2 hours): 2 hours × $200 = $400
+    - **Total pay**: $1,200
+  </Tab>
+  
+  <Tab title="Method 2: Agreed Hourly Rate">
+    Overtime valued at fixed agreed rate:
+    
+    **Example** (8-hour schedule, $100/hr base, $120/hr overtime):
+    - Regular: 8 hours × $100 = $800
+    - Overtime (2 hours): 2 hours × $120 = $240
+    - **Total pay**: $1,040
+  </Tab>
+</Tabs>
+
+<Info>
+Valuation configuration is stored per employee with effective-dated history, allowing rates to change over time.
+</Info>
+
+## Punctuality Bonus System
+
+### SushiGo Punctuality Rules (RF-32, RF-33, RN-01, RN-02)
+
+Punctuality bonus is calculated based on lateness **ranges**:
+
+| Lateness | Bonus Percentage |
+|----------|------------------|
+| 0:00 to 9:59 min | 100% |
+| 10:00 to 14:59 min | 50% |
+| 15:00 to 20:59 min | 25% |
+| 21:00 to 25:59 min | 10% |
+| 26:00+ min | 0% |
+
+<Note>
+Lateness is computed with **seconds precision**. Arriving at 09:59 is still 100% bonus, but 10:00 drops to 50%.
+</Note>
+
+### Weekly Bonus Base Amounts
+
+Configured per employee/group (RF-33):
+
+- **$110 group**: Angela, Adonais, Moni (divided by 6 working days)
+- **$100 group**: Most employees (divided by 6 working days)
+- **$50 group**: Samantha (divided by 3 working days)
+
+### Daily Bonus Calculation
+
+```
+daily_bonus = (weekly_base ÷ working_days) × punctuality_percentage
+
+Example ($100 group, 6 days, 0:00-9:59 late):
+daily_bonus = ($100 ÷ 6) × 100% = $16.67
+```
+
+### Bonus Exclusions (RF-35, RF-40, RN-03, RN-04)
+
+<CardGroup cols={2}>
+  <Card title="Day Off" icon="calendar-xmark">
+    Empty cells (DAY_OFF status) do not receive bonus
+  </Card>
+  
+  <Card title="Negotiated Extra Day" icon="calendar-plus">
+    EXTRA status days are paid separately, bonus does not apply
+  </Card>
+  
+  <Card title="Per-Employee Exceptions" icon="user-slash">
+    Example: Andrea Tue/Wed/Thu = 0% (configurable)
+  </Card>
+</CardGroup>
+
+## Partial Leave
+
+### Overview (RF-25a, RF-25b, RF-25c)
+
+**Partial leave** covers situations where an employee:
+- **Arrives late** (with permission)
+- **Leaves early** (with permission)
+- **Takes time** during the day (e.g., medical appointment)
+
+### Paid vs Unpaid
+
+<Tabs>
+  <Tab title="Unpaid Partial Leave">
+    **Rule (RN-00d)**: Deduct pay for **exact time taken, minute by minute**
+    
+    **Example**:
+    - Leave: 2 hours (120 minutes)
+    - Wage: $125/hr = $2.0833/min
+    - **Deduction**: 120 min × $2.0833 = $250
+    
+    <Warning>Never deduct more or less than the exact time taken</Warning>
+  </Tab>
+  
+  <Tab title="Paid Partial Leave">
+    **Rule (RN-00e)**: No pay deduction, only historical record
+    
+    **Example**:
+    - Leave: 2 hours (medical appointment, paid)
+    - **Deduction**: $0
+    - Record stored for audit/tracking purposes
+  </Tab>
+</Tabs>
+
+### Partial Leave Fields
+
+Stored in `PartialLeave` model (AP-020, pending implementation):
+
+```php
+'attendance_id'      // Link to Attendance record
+'type'               // arrive_late | leave_early | take_time
+'start_time'         // DateTime: when leave started
+'end_time'           // DateTime: when leave ended
+'duration_minutes'   // Integer: calculated duration
+'is_paid'            // Boolean: paid or unpaid
+'reason'             // Text: explanation
+'approved_by'        // User ID of approver
+```
+
+## Related Models and Relationships
+
+### Employee Schedule
+
+Attendance system requires employee schedules to:
+- Determine expected check-in/check-out times
+- Calculate lateness
+- Identify overtime
+- Prorate punctuality bonuses
+
+<Info>
+See [Employee Schedules](/employees/schedules) for complete schedule configuration details.
+</Info>
+
+### Wage History
+
+Attendance integrates with wage history for:
+- Pay deductions (lateness > 30 min)
+- Unpaid partial leave calculations
+- Overtime valuation
+
+Formula for minute-based deductions:
+
+```php
+$wage = $employee->wageHistories()->effective($date)->first();
+$perMinuteRate = $wage->minuteRate(); // hourly_rate ÷ 60
+$deduction = $lateMinutes × $perMinuteRate;
+```
+
+### Employment Period
+
+Attendance records are created only for employees with an active employment period at the branch on that date.
+
+Query pattern from `TodayAttendanceController.php:76`:
+
+```php
+$employees = Employee::whereHas('employmentPeriods', function($q) use ($branchId) {
+    $q->where('branch_id', $branchId)
+      ->where('is_active', true);
+});
+```
+
+## Audit and Confirmation
+
+### Confirmed By
+
+The `confirmed_by` field tracks who validated/confirmed the attendance record:
+
+```php
+'confirmed_by'  // User ID of manager/admin who confirmed
+```
+
+Use cases:
+- Manager confirms end-of-day attendance
+- Admin makes historical corrections
+- System tracks accountability
+
+### Audit Trail
+
+Attendance records use the `Auditable` trait (from `Attendance.php:16`):
+
+```php
+use App\Models\Concerns\Auditable;
+```
+
+<Info>
+The Auditable trait automatically tracks `created_by`, `updated_by`, and timestamps for all changes to attendance records.
+</Info>
+
+## Future Features (Pending Implementation)
+
+<CardGroup cols={2}>
+  <Card title="Partial Leaves" icon="calendar-minus">
+    **Status**: AP-020 pending
+    
+    Full partial leave tracking with type classification and pay impact
+  </Card>
+  
+  <Card title="Overtime Bank" icon="piggy-bank">
+    **Status**: AP-034 pending
+    
+    Bank system to track earned, used, and paid overtime hours with movements
+  </Card>
+  
+  <Card title="Employee Self Check-in" icon="mobile">
+    **Status**: Future
+    
+    Mobile app for employees to check in/out themselves
+  </Card>
+  
+  <Card title="Biometric Integration" icon="fingerprint">
+    **Status**: Future
+    
+    Integration with fingerprint or face recognition systems
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Record Times Promptly" icon="clock">
+    Record check-in/check-out as they happen to maintain accuracy
+  </Card>
+  
+  <Card title="Review Before Close" icon="circle-check">
+    Managers should review all attendance before closing the pay period
+  </Card>
+  
+  <Card title="Document Exceptions" icon="pen">
+    Use `meta` field to note unusual circumstances or special cases
+  </Card>
+  
+  <Card title="Authorize Overtime Explicitly" icon="signature">
+    Never leave overtime authorization ambiguous - decide at check-out time
+  </Card>
+</CardGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Employee Schedules" icon="calendar" href="/employees/schedules">
+    Configure expected work times for lateness and overtime calculations
+  </Card>
+  <Card title="Wage History" icon="dollar-sign" href="/employees/wage-history">
+    Understand how wages integrate with attendance pay calculations
+  </Card>
+  <Card title="Payroll Calculation" icon="calculator" href="/payroll/calculation">
+    Complete payroll calculation logic using attendance data
+  </Card>
+  <Card title="Attendance Module Spec" icon="file-lines" href="https://github.com/sushigo/docs">
+    Full attendance module specification (RF-11 through RF-21)
+  </Card>
+</CardGroup>

@@ -1,0 +1,542 @@
+---
+title: "Items & Variants"
+description: "Manage the master catalog of items and their variants"
+---
+
+## Overview
+
+Items represent the master catalog in SushiGo. Each **Item** can have multiple **ItemVariants** that represent different packaging sizes, presentations, or configurations.
+
+<Info>
+  **Example**: Item "Rice" (INSUMO) might have variants: "Rice 1kg Bag", "Rice 5kg Bag", "Rice 20kg Sack" — each with different codes, barcodes, and pricing.
+</Info>
+
+## Item Structure
+
+### Item (Master)
+
+The parent entity that groups related variants.
+
+<ParamField body="sku" type="string" required>
+  Unique SKU code (max 100 chars, auto-uppercase)
+  
+  **Example**: `INS-001`, `PROD-CALIFORNIA`, `ACT-COOKER`
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Item name (max 255 chars)
+  
+  **Example**: `Arroz Sushi Premium`, `California Roll`, `Rice Cooker`
+</ParamField>
+
+<ParamField body="description" type="text">
+  Detailed description (optional)
+</ParamField>
+
+<ParamField body="type" type="enum" required>
+  Item type: `INSUMO`, `PRODUCTO`, or `ACTIVO`
+</ParamField>
+
+<ParamField body="is_stocked" type="boolean" default="true">
+  Whether to track inventory for this item
+</ParamField>
+
+<ParamField body="is_perishable" type="boolean" default="false">
+  Whether item has expiration dates (enables lot tracking)
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status (inactive items hidden from selection)
+</ParamField>
+
+### ItemVariant (SKU Level)
+
+Represents a specific SKU with its own barcode, pricing, and stock tracking.
+
+<ParamField body="item_id" type="integer" required>
+  Parent item ID
+</ParamField>
+
+<ParamField body="uom_id" type="integer" required>
+  Base unit of measure ID (e.g., kg, unit, liter)
+</ParamField>
+
+<ParamField body="code" type="string" required>
+  Unique variant code (max 100 chars, auto-uppercase)
+  
+  **Example**: `ARR-KG`, `ARR-5KG`, `ROLL-CAL-8PC`
+</ParamField>
+
+<ParamField body="barcode" type="string">
+  Product barcode (EAN, UPC, Code128, etc.)
+  
+  Auto-cleaned: removes spaces and special chars
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Variant name (max 255 chars)
+  
+  **Example**: `Arroz Premium 1kg`, `California Roll 8 piezas`
+</ParamField>
+
+<ParamField body="description" type="text">
+  Variant-specific description
+</ParamField>
+
+<ParamField body="track_lot" type="boolean" default="false">
+  Enable lot number tracking (for batches with expiration)
+</ParamField>
+
+<ParamField body="track_serial" type="boolean" default="false">
+  Enable serial number tracking (for unique assets)
+</ParamField>
+
+<ParamField body="sale_price" type="decimal">
+  Default sale price (optional)
+</ParamField>
+
+<ParamField body="min_stock" type="decimal">
+  Minimum stock level (triggers low stock alerts)
+</ParamField>
+
+<ParamField body="max_stock" type="decimal">
+  Maximum stock level (must be >= min_stock)
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status
+</ParamField>
+
+### Cost Tracking Fields (Auto-Updated)
+
+<ParamField body="last_unit_cost" type="decimal" readonly>
+  Most recent purchase cost per base unit
+</ParamField>
+
+<ParamField body="avg_unit_cost" type="decimal" readonly>
+  Weighted average cost per base unit (updated on receipts)
+</ParamField>
+
+## API Endpoints
+
+### Create Item
+
+```http
+POST /api/v1/items
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "sku": "INS-ARROZ",
+  "name": "Arroz Sushi Premium",
+  "description": "Arroz japonés premium para sushi",
+  "type": "INSUMO",
+  "is_stocked": true,
+  "is_perishable": false,
+  "is_active": true
+}
+```
+
+<ResponseExample>
+```json Response (201 Created)
+{
+  "status": 201,
+  "data": {
+    "id": 1,
+    "sku": "INS-ARROZ",
+    "name": "Arroz Sushi Premium",
+    "description": "Arroz japonés premium para sushi",
+    "type": "INSUMO",
+    "is_stocked": true,
+    "is_perishable": false,
+    "is_active": true,
+    "created_at": "2026-03-06T10:30:00Z",
+    "updated_at": "2026-03-06T10:30:00Z"
+  }
+}
+```
+</ResponseExample>
+
+### Create Item Variant
+
+```http
+POST /api/v1/item-variants
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "item_id": 1,
+  "uom_id": 3,
+  "code": "ARR-KG",
+  "barcode": "7501234567890",
+  "name": "Arroz Premium 1kg",
+  "description": "Presentación de 1 kilogramo",
+  "track_lot": false,
+  "track_serial": false,
+  "sale_price": 35.00,
+  "min_stock": 10.00,
+  "max_stock": 100.00,
+  "is_active": true
+}
+```
+
+<ResponseExample>
+```json Response (201 Created)
+{
+  "status": 201,
+  "data": {
+    "id": 1,
+    "item_id": 1,
+    "uom_id": 3,
+    "code": "ARR-KG",
+    "barcode": "7501234567890",
+    "name": "Arroz Premium 1kg",
+    "description": "Presentación de 1 kilogramo",
+    "track_lot": false,
+    "track_serial": false,
+    "last_unit_cost": 0.0000,
+    "avg_unit_cost": 0.0000,
+    "sale_price": 35.0000,
+    "min_stock": 10.0000,
+    "max_stock": 100.0000,
+    "is_active": true,
+    "uom": {
+      "id": 3,
+      "code": "KG",
+      "name": "Kilogram",
+      "symbol": "kg"
+    },
+    "item": {
+      "id": 1,
+      "sku": "INS-ARROZ",
+      "name": "Arroz Sushi Premium",
+      "type": "INSUMO"
+    },
+    "created_at": "2026-03-06T10:35:00Z",
+    "updated_at": "2026-03-06T10:35:00Z"
+  }
+}
+```
+</ResponseExample>
+
+### List Items
+
+```http
+GET /api/v1/items?type=INSUMO&is_active=true&search=arroz&per_page=15
+Authorization: Bearer {token}
+```
+
+<ParamField query="type" type="enum">
+  Filter by type: `INSUMO`, `PRODUCTO`, or `ACTIVO`
+</ParamField>
+
+<ParamField query="is_stocked" type="boolean">
+  Filter stocked items
+</ParamField>
+
+<ParamField query="is_perishable" type="boolean">
+  Filter perishable items
+</ParamField>
+
+<ParamField query="is_active" type="boolean">
+  Filter active/inactive items
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search by SKU or name (case-insensitive)
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Results per page
+</ParamField>
+
+<ResponseExample>
+```json Response (200 OK)
+{
+  "status": 200,
+  "data": [
+    {
+      "id": 1,
+      "sku": "INS-ARROZ",
+      "name": "Arroz Sushi Premium",
+      "type": "INSUMO",
+      "is_stocked": true,
+      "is_perishable": false,
+      "is_active": true
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 15,
+    "total": 1,
+    "last_page": 1
+  }
+}
+```
+</ResponseExample>
+
+### Show Item
+
+```http
+GET /api/v1/items/{id}
+Authorization: Bearer {token}
+```
+
+Returns full item details including all variants.
+
+### Update Item
+
+```http
+PUT /api/v1/items/{id}
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "Arroz Sushi Premium Plus",
+  "description": "Nueva presentación mejorada",
+  "is_active": true
+}
+```
+
+<Warning>
+  Cannot change `sku` or `type` after creation
+</Warning>
+
+### Delete Item
+
+```http
+DELETE /api/v1/items/{id}
+Authorization: Bearer {token}
+```
+
+Soft deletes the item and all its variants.
+
+<Warning>
+  Cannot delete items with active stock or movement history
+</Warning>
+
+## Real-World Examples
+
+### Example 1: INSUMO with Multiple Variants
+
+**Item**: Salmon (INSUMO)
+
+```json
+{
+  "sku": "INS-SALMON",
+  "name": "Salmon Atlantic",
+  "type": "INSUMO",
+  "is_stocked": true,
+  "is_perishable": true
+}
+```
+
+**Variants**:
+- `SAL-KG` - Salmon Atlantic 1kg (base UOM: kg)
+- `SAL-200G` - Salmon Atlantic 200g (conversion: 1kg = 5 × 200g)
+- `SAL-SAKU` - Salmon Saku Block 250g (conversion: 1kg = 4 × 250g)
+
+### Example 2: PRODUCTO with Single Variant
+
+**Item**: California Roll (PRODUCTO)
+
+```json
+{
+  "sku": "PROD-CALIFORNIA",
+  "name": "California Roll",
+  "type": "PRODUCTO",
+  "is_stocked": true,
+  "is_perishable": true
+}
+```
+
+**Variant**:
+- `ROLL-CAL-8PC` - California Roll 8 piezas (base UOM: unit, sale_price: 120.00)
+
+<Info>
+  Products typically have 1:1 UOM (base unit only). Multi-unit conversions are for INSUMOs.
+</Info>
+
+### Example 3: ACTIVO with Serial Tracking
+
+**Item**: Rice Cooker (ACTIVO)
+
+```json
+{
+  "sku": "ACT-COOKER",
+  "name": "Rice Cooker Commercial",
+  "type": "ACTIVO",
+  "is_stocked": true,
+  "is_perishable": false
+}
+```
+
+**Variant**:
+- `COOKER-ZOJIRUSHI-10CUP` - Zojirushi 10 Cup (track_serial: true)
+
+## Validation Rules
+
+### Item Creation
+
+<Tabs>
+  <Tab title="Required Fields">
+    - `sku` (unique, max 100)
+    - `name` (max 255)
+    - `type` (INSUMO, PRODUCTO, ACTIVO)
+  </Tab>
+  <Tab title="Optional Fields">
+    - `description` (text)
+    - `is_stocked` (default: true)
+    - `is_perishable` (default: false)
+    - `is_active` (default: true)
+  </Tab>
+  <Tab title="Auto-Transforms">
+    - `sku` → uppercase
+    - `type` → uppercase
+  </Tab>
+</Tabs>
+
+### Variant Creation
+
+<Tabs>
+  <Tab title="Required Fields">
+    - `item_id` (must exist)
+    - `uom_id` (must exist)
+    - `code` (unique, max 100)
+    - `name` (max 255)
+  </Tab>
+  <Tab title="Optional Fields">
+    - `barcode` (unique if provided, max 50)
+    - `description`
+    - `track_lot`, `track_serial` (default: false)
+    - `sale_price` (min: 0)
+    - `min_stock`, `max_stock` (min: 0)
+    - `is_active` (default: true)
+  </Tab>
+  <Tab title="Custom Validations">
+    - `max_stock` must be >= `min_stock`
+    - `barcode` auto-cleaned (removes spaces/special chars)
+    - `code` → uppercase
+  </Tab>
+</Tabs>
+
+## Business Rules
+
+<CardGroup cols={2}>
+  <Card title="Type Immutability" icon="lock">
+    Item type cannot be changed after creation
+  </Card>
+  <Card title="SKU Uniqueness" icon="fingerprint">
+    SKUs and variant codes must be globally unique
+  </Card>
+  <Card title="Soft Deletion" icon="trash-can">
+    Deleted items preserved for audit trail
+  </Card>
+  <Card title="Cost Tracking" icon="dollar-sign">
+    Costs updated automatically on stock receipts
+  </Card>
+</CardGroup>
+
+### UOM Rules by Type
+
+| Type | UOM Conversions | Typical Base UOM |
+|------|----------------|------------------|
+| INSUMO | Multiple allowed | kg, L, unit, box |
+| PRODUCTO | Base only (1:1) | unit, portion, set |
+| ACTIVO | Base only (1:1) | unit, set |
+
+## Common Workflows
+
+### Workflow 1: Register New Supply
+
+<Steps>
+  <Step title="Create Item">
+    POST `/api/v1/items` with type=INSUMO
+  </Step>
+  <Step title="Create Base Variant">
+    POST `/api/v1/item-variants` with base UOM (e.g., kg)
+  </Step>
+  <Step title="Optional: Create Additional Variants">
+    Add variants for different packaging (e.g., 5kg bag)
+  </Step>
+  <Step title="Set Up UOM Conversions">
+    Define conversions between variant UOMs (see Unit Conversions page)
+  </Step>
+  <Step title="Register Opening Balance">
+    Add initial stock via `/api/v1/inventory/opening-balance`
+  </Step>
+</Steps>
+
+### Workflow 2: Add Finished Product
+
+<Steps>
+  <Step title="Create Item">
+    POST `/api/v1/items` with type=PRODUCTO
+  </Step>
+  <Step title="Create Variant">
+    POST `/api/v1/item-variants` with sale_price
+  </Step>
+  <Step title="Define Recipe (Future)">
+    Link INSUMOs to PRODUCTO via recipe/BOM
+  </Step>
+  <Step title="Set Stock Levels">
+    Configure min_stock and max_stock for alerts
+  </Step>
+</Steps>
+
+## Database Schema
+
+### items Table
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | bigint | PK, auto-increment |
+| sku | varchar(100) | UNIQUE, NOT NULL |
+| name | varchar(255) | NOT NULL |
+| description | text | NULLABLE |
+| type | enum | IN ('INSUMO', 'PRODUCTO', 'ACTIVO') |
+| is_stocked | boolean | DEFAULT true |
+| is_perishable | boolean | DEFAULT false |
+| is_active | boolean | DEFAULT true |
+| meta | jsonb | DEFAULT '{}' |
+| created_at | timestamp | |
+| updated_at | timestamp | |
+| deleted_at | timestamp | NULLABLE |
+
+### item_variants Table
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | bigint | PK, auto-increment |
+| item_id | bigint | FK → items.id |
+| uom_id | bigint | FK → units_of_measure.id |
+| code | varchar(100) | UNIQUE, NOT NULL |
+| barcode | varchar(50) | UNIQUE, NULLABLE |
+| name | varchar(255) | NOT NULL |
+| description | text | NULLABLE |
+| track_lot | boolean | DEFAULT false |
+| track_serial | boolean | DEFAULT false |
+| last_unit_cost | decimal(10,4) | DEFAULT 0 |
+| avg_unit_cost | decimal(10,4) | DEFAULT 0 |
+| sale_price | decimal(10,4) | NULLABLE |
+| min_stock | decimal(10,4) | DEFAULT 0 |
+| max_stock | decimal(10,4) | DEFAULT 0 |
+| is_active | boolean | DEFAULT true |
+| meta | jsonb | DEFAULT '{}' |
+| created_at | timestamp | |
+| updated_at | timestamp | |
+| deleted_at | timestamp | NULLABLE |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Inventory Locations" icon="warehouse" href="/inventory/locations">
+    Set up locations to hold stock
+  </Card>
+  <Card title="Unit Conversions" icon="ruler" href="/inventory/unit-conversions">
+    Configure UOM conversions for INSUMOs
+  </Card>
+  <Card title="Stock Movements" icon="truck-fast" href="/inventory/stock-movements">
+    Register opening balances and movements
+  </Card>
+</CardGroup>

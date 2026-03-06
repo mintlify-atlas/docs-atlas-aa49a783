@@ -1,0 +1,248 @@
+---
+title: "Login"
+api: "POST /api/v1/auth/login"
+description: "Authenticate a user and receive an access token"
+---
+
+## Authentication
+
+This endpoint does not require authentication.
+
+## Request Body
+
+<ParamField body="email" type="string" required={false}>
+  User's email address. Required if `phone` is not provided.
+  
+  **Validation**: Must be a valid email format.
+  
+  **Example**: `john@example.com`
+</ParamField>
+
+<ParamField body="phone" type="string" required={false}>
+  User's phone number. Required if `email` is not provided.
+  
+  **Validation**: Maximum 20 characters.
+  
+  **Example**: `+525512345678`
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password.
+  
+  **Validation**: Required string.
+  
+  **Example**: `password123`
+</ParamField>
+
+<Note>
+You must provide either `email` or `phone`, but not both. The system will authenticate using whichever identifier is provided.
+</Note>
+
+## Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (200 for success)
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="data properties">
+    <ResponseField name="token" type="string">
+      OAuth2 access token for authenticating subsequent requests
+      
+      **Example**: `eyJ0eXAiOiJKV1QiLCJhbGc...`
+    </ResponseField>
+    
+    <ResponseField name="token_type" type="string">
+      Token type, always "Bearer"
+    </ResponseField>
+    
+    <ResponseField name="user" type="object">
+      <Expandable title="user properties">
+        <ResponseField name="id" type="integer">
+          User's unique identifier
+        </ResponseField>
+        
+        <ResponseField name="name" type="string">
+          User's full name
+        </ResponseField>
+        
+        <ResponseField name="email" type="string">
+          User's email address
+        </ResponseField>
+        
+        <ResponseField name="roles" type="array">
+          Array of role objects assigned to the user
+          
+          <Expandable title="role object">
+            <ResponseField name="id" type="integer">
+              Role ID
+            </ResponseField>
+            
+            <ResponseField name="name" type="string">
+              Role name (e.g., "admin", "super-admin")
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+        
+        <ResponseField name="permissions" type="array">
+          Array of permission objects assigned to the user
+          
+          <Expandable title="permission object">
+            <ResponseField name="id" type="integer">
+              Permission ID
+            </ResponseField>
+            
+            <ResponseField name="name" type="string">
+              Permission name (e.g., "view-items", "create-inventory")
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Success Response Example
+
+```json
+{
+  "status": 200,
+  "data": {
+    "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoiLCJpYXQiOjE3MDk4NTYwMDAsIm5iZiI6MTcwOTg1NjAwMCwiZXhwIjoxNzQxMzkyMDAwLCJzdWIiOiIxIiwic2NvcGVzIjpbXX0...",
+    "token_type": "Bearer",
+    "user": {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "roles": [
+        {
+          "id": 1,
+          "name": "admin"
+        }
+      ],
+      "permissions": [
+        {
+          "id": 5,
+          "name": "view-items"
+        },
+        {
+          "id": 12,
+          "name": "create-inventory"
+        }
+      ]
+    }
+  }
+}
+```
+
+## Error Responses
+
+<Expandable title="422 Unprocessable Entity - Invalid Credentials">
+```json
+{
+  "message": "The provided credentials are incorrect.",
+  "errors": {
+    "email": [
+      "The provided credentials are incorrect."
+    ]
+  }
+}
+```
+
+Or when using phone:
+
+```json
+{
+  "message": "The provided credentials are incorrect.",
+  "errors": {
+    "phone": [
+      "The provided credentials are incorrect."
+    ]
+  }
+}
+```
+</Expandable>
+
+<Expandable title="422 Unprocessable Entity - Validation Error">
+```json
+{
+  "message": "The given data was invalid.",
+  "errors": {
+    "email": [
+      "Email is required when phone is not provided."
+    ],
+    "password": [
+      "The password field is required."
+    ]
+  }
+}
+```
+</Expandable>
+
+<Expandable title="500 Internal Server Error">
+```json
+{
+  "status": 500,
+  "message": "An unexpected error occurred"
+}
+```
+</Expandable>
+
+## Code Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "email": "john@example.com",
+    "password": "password123"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.local/api/v1/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  },
+  body: JSON.stringify({
+    email: 'john@example.com',
+    password: 'password123'
+  })
+});
+
+const data = await response.json();
+console.log('Token:', data.data.token);
+console.log('User:', data.data.user);
+```
+
+```php PHP
+<?php
+
+use Illuminate\Support\Facades\Http;
+
+$response = Http::post('https://api.sushigo.local/api/v1/auth/login', [
+    'email' => 'john@example.com',
+    'password' => 'password123',
+]);
+
+$data = $response->json();
+$token = $data['data']['token'];
+$user = $data['data']['user'];
+
+echo "Token: {$token}\n";
+echo "User: {$user['name']}\n";
+```
+
+</CodeGroup>
+
+## Usage Notes
+
+- Store the returned `token` securely (e.g., in localStorage or a secure cookie)
+- Include the token in subsequent API requests using the `Authorization: Bearer {token}` header
+- The token does not expire automatically but can be revoked via the logout endpoint
+- User roles and permissions are included in the response for client-side authorization checks

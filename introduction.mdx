@@ -1,0 +1,189 @@
+---
+title: "Welcome to SushiGo"
+description: "Full-stack restaurant management platform for inventory, cash operations, attendance tracking, and payroll"
+---
+
+## Overview
+
+SushiGo is a comprehensive restaurant management platform built within the ComandaFlow ecosystem. It provides end-to-end solutions for managing inventory across multiple locations, tracking cash operations, monitoring employee attendance, and processing payroll.
+
+<CardGroup cols={2}>
+  <Card title="Get Started" icon="rocket" href="/quickstart">
+    Set up SushiGo and run your first instance in minutes
+  </Card>
+  <Card title="Installation Guide" icon="download" href="/installation">
+    Full installation instructions for development and production
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/login">
+    Complete API documentation with examples
+  </Card>
+  <Card title="Development Setup" icon="laptop-code" href="/development/environment-setup">
+    Configure your development environment
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Multi-Location Inventory" icon="warehouse">
+    Track stock across branches and temporary event locations with full movement history and unit conversions
+  </Card>
+  <Card title="Cash Management" icon="cash-register">
+    Manage cash sessions, registers, terminals, adjustments, and expenses with complete audit trails
+  </Card>
+  <Card title="Employee Attendance" icon="clock">
+    Real-time check-in/out tracking with lunch breaks and comprehensive attendance reports
+  </Card>
+  <Card title="Role-Based Access" icon="shield">
+    Granular permissions using Spatie Permissions with Passport OAuth authentication
+  </Card>
+  <Card title="Operating Units" icon="building">
+    Organize operations by branches and temporary events with isolated inventories
+  </Card>
+  <Card title="REST API" icon="brackets-curly">
+    Comprehensive API with Swagger documentation and Single Action Controllers
+  </Card>
+</CardGroup>
+
+## Tech Stack
+
+SushiGo is built with modern, production-ready technologies:
+
+<Tabs>
+  <Tab title="Backend">
+    - **PHP 8.2** with **Laravel 12** framework
+    - **PostgreSQL 15** for data persistence
+    - **Laravel Passport** for OAuth authentication
+    - **Spatie Permissions** for role-based access control
+    - **L5 Swagger** for API documentation
+  </Tab>
+  <Tab title="Frontend">
+    - **React 19** with **TypeScript 5**
+    - **Vite 7** for fast builds
+    - **TanStack Router** for file-based routing
+    - **TanStack Query** for server state management
+    - **Zustand** for client state management
+    - **Tailwind CSS** for styling
+  </Tab>
+  <Tab title="Infrastructure">
+    - **Docker Compose** for development environment
+    - **Apache** web server
+    - **Supervisor** for process management
+    - **MailHog** for email testing
+    - **PgAdmin** for database administration
+  </Tab>
+</Tabs>
+
+## Architecture
+
+SushiGo follows a **Single Action Controller (SAC)** pattern where each controller handles one specific action via the `__invoke()` method. This promotes focused, testable code with clear responsibilities.
+
+```
+app/Http/Controllers/Api/V1/
+├── Items/
+│   ├── CreateItemController.php
+│   ├── ListItemsController.php
+│   └── UpdateItemController.php
+├── Inventory/
+│   ├── RegisterOpeningBalanceController.php
+│   └── RegisterStockOutController.php
+└── Employees/
+    ├── CreateEmployeeController.php
+    └── ListEmployeesController.php
+```
+
+Business logic is extracted into dedicated service classes and actions:
+
+- **Actions** (`app/Actions/`) - Reusable business logic
+- **Services** (`app/Services/`) - Complex operations
+- **Requests** (`app/Http/Requests/`) - Input validation
+- **Resources** (`app/Http/Resources/`) - Response formatting
+
+## Quick Example
+
+Here's how to authenticate and fetch inventory items:
+
+<CodeGroup>
+
+```bash cURL
+# Login
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@sushigo.com",
+    "password": "admin123456"
+  }'
+
+# Fetch items
+curl -X GET http://localhost:8080/api/v1/items \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+```javascript JavaScript
+// Login
+const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: 'admin@sushigo.com',
+    password: 'admin123456'
+  })
+});
+const { access_token } = await response.json();
+
+// Fetch items
+const items = await fetch('http://localhost:8080/api/v1/items', {
+  headers: { 'Authorization': `Bearer ${access_token}` }
+}).then(r => r.json());
+```
+
+```php PHP
+// Using Guzzle
+$client = new \GuzzleHttp\Client();
+
+// Login
+$response = $client->post('http://localhost:8080/api/v1/auth/login', [
+    'json' => [
+        'email' => 'admin@sushigo.com',
+        'password' => 'admin123456'
+    ]
+]);
+$data = json_decode($response->getBody(), true);
+$token = $data['access_token'];
+
+// Fetch items
+$response = $client->get('http://localhost:8080/api/v1/items', [
+    'headers' => ['Authorization' => "Bearer {$token}"]
+]);
+$items = json_decode($response->getBody(), true);
+```
+
+</CodeGroup>
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/pakodiazdev/sushigo">
+    View source code, report issues, and contribute
+  </Card>
+  <Card title="API Documentation" icon="book" href="http://localhost:8080/api/documentation">
+    Interactive Swagger UI (available when running locally)
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<Steps>
+  <Step title="Follow the Quickstart">
+    Get SushiGo running locally with Docker Compose in under 5 minutes
+  </Step>
+  <Step title="Explore Core Concepts">
+    Learn about Operating Units, Authentication, and Permissions
+  </Step>
+  <Step title="Read Module Guides">
+    Dive into Inventory Management, Cash Operations, and Employee Management
+  </Step>
+  <Step title="Check the API Reference">
+    Explore detailed endpoint documentation with request/response examples
+  </Step>
+</Steps>

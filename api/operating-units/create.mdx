@@ -1,0 +1,394 @@
+---
+title: Create, Update & Delete Operating Units
+description: Manage operating unit lifecycle operations
+---
+
+## Create Operating Unit
+
+<api method="POST" endpoint="/api/v1/operating-units" auth="bearer" />
+
+Creates a new operating unit within a branch. Operating units represent operational contexts such as main branch inventory, buffer storage, return processing areas, or temporary event locations.
+
+### Request Body
+
+<ParamField body="branch_id" type="integer" required>
+  ID of the branch this operating unit belongs to
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Operating unit name (max 255 characters)
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Operating unit type. Valid values:
+  - `BRANCH_MAIN` - Main branch operating unit
+  - `BRANCH_BUFFER` - Branch buffer storage
+  - `BRANCH_RETURN` - Branch return processing
+  - `EVENT_TEMP` - Temporary event unit
+</ParamField>
+
+<ParamField body="start_date" type="string">
+  Start date in YYYY-MM-DD format
+</ParamField>
+
+<ParamField body="end_date" type="string">
+  End date in YYYY-MM-DD format (must be after or equal to start_date). Used primarily for EVENT_TEMP types.
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Whether the operating unit is active
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata as a JSON object
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Created operating unit object
+
+  <ResponseField name="id" type="integer">
+    Operating unit ID
+  </ResponseField>
+
+  <ResponseField name="branch_id" type="integer">
+    Associated branch ID
+  </ResponseField>
+
+  <ResponseField name="name" type="string">
+    Operating unit name
+  </ResponseField>
+
+  <ResponseField name="type" type="string">
+    Operating unit type
+  </ResponseField>
+
+  <ResponseField name="start_date" type="string">
+    Start date (YYYY-MM-DD format)
+  </ResponseField>
+
+  <ResponseField name="end_date" type="string" nullable>
+    End date (YYYY-MM-DD format)
+  </ResponseField>
+
+  <ResponseField name="is_active" type="boolean">
+    Active status
+  </ResponseField>
+
+  <ResponseField name="meta" type="object" nullable>
+    Additional metadata
+  </ResponseField>
+
+  <ResponseField name="branch" type="object">
+    Associated branch details
+    
+    <ResponseField name="id" type="integer">
+      Branch ID
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Branch name
+    </ResponseField>
+  </ResponseField>
+
+  <ResponseField name="created_at" type="string">
+    Creation timestamp (ISO 8601 UTC)
+  </ResponseField>
+
+  <ResponseField name="updated_at" type="string">
+    Last update timestamp (ISO 8601 UTC)
+  </ResponseField>
+</ResponseField>
+
+### Example Request
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST "https://api.sushigo.local/api/v1/operating-units" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      -d '{
+        "branch_id": 1,
+        "name": "Main Kitchen",
+        "type": "BRANCH_MAIN",
+        "start_date": "2026-03-01",
+        "is_active": true
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="JavaScript">
+    ```javascript
+    const response = await fetch('https://api.sushigo.local/api/v1/operating-units', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer YOUR_TOKEN',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        branch_id: 1,
+        name: 'Main Kitchen',
+        type: 'BRANCH_MAIN',
+        start_date: '2026-03-01',
+        is_active: true
+      })
+    });
+    
+    const data = await response.json();
+    ```
+  </Tab>
+</Tabs>
+
+### Example Response
+
+```json
+{
+  "message": "Operating unit created successfully",
+  "data": {
+    "id": 5,
+    "branch_id": 1,
+    "name": "Main Kitchen",
+    "type": "BRANCH_MAIN",
+    "start_date": "2026-03-01",
+    "end_date": null,
+    "is_active": true,
+    "meta": null,
+    "branch": {
+      "id": 1,
+      "name": "Downtown Branch"
+    },
+    "created_at": "2026-03-06T14:22:30+00:00",
+    "updated_at": "2026-03-06T14:22:30+00:00"
+  }
+}
+```
+
+### Error Responses
+
+<ResponseField name="422" type="object">
+  Validation error
+  
+  ```json
+  {
+    "message": "The given data was invalid.",
+    "errors": {
+      "branch_id": ["The branch id field is required."],
+      "name": ["The name field is required."],
+      "type": ["The selected type is invalid."]
+    }
+  }
+  ```
+</ResponseField>
+
+---
+
+## Update Operating Unit
+
+<api method="PUT" endpoint="/api/v1/operating-units/{id}" auth="bearer" />
+
+Updates an existing operating unit. All fields are optional; only provided fields will be updated.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Operating unit ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="branch_id" type="integer">
+  ID of the branch this operating unit belongs to
+</ParamField>
+
+<ParamField body="name" type="string">
+  Operating unit name (max 255 characters)
+</ParamField>
+
+<ParamField body="type" type="string">
+  Operating unit type (BRANCH_MAIN, BRANCH_BUFFER, BRANCH_RETURN, EVENT_TEMP)
+</ParamField>
+
+<ParamField body="start_date" type="string">
+  Start date in YYYY-MM-DD format
+</ParamField>
+
+<ParamField body="end_date" type="string">
+  End date in YYYY-MM-DD format (must be after or equal to start_date)
+</ParamField>
+
+<ParamField body="is_active" type="boolean">
+  Whether the operating unit is active
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata as a JSON object
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Updated operating unit object (same structure as create response)
+</ResponseField>
+
+### Example Request
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X PUT "https://api.sushigo.local/api/v1/operating-units/5" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      -d '{
+        "name": "Updated Kitchen Name",
+        "is_active": false
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="JavaScript">
+    ```javascript
+    const response = await fetch('https://api.sushigo.local/api/v1/operating-units/5', {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bearer YOUR_TOKEN',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        name: 'Updated Kitchen Name',
+        is_active: false
+      })
+    });
+    
+    const data = await response.json();
+    ```
+  </Tab>
+</Tabs>
+
+### Example Response
+
+```json
+{
+  "message": "Operating unit updated successfully",
+  "data": {
+    "id": 5,
+    "branch_id": 1,
+    "name": "Updated Kitchen Name",
+    "type": "BRANCH_MAIN",
+    "start_date": "2026-03-01",
+    "end_date": null,
+    "is_active": false,
+    "meta": null,
+    "branch": {
+      "id": 1,
+      "name": "Downtown Branch"
+    },
+    "created_at": "2026-03-06T14:22:30+00:00",
+    "updated_at": "2026-03-06T14:35:10+00:00"
+  }
+}
+```
+
+### Error Responses
+
+<ResponseField name="404" type="object">
+  Operating unit not found
+  
+  ```json
+  {
+    "message": "Not found"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="422" type="object">
+  Validation error
+  
+  ```json
+  {
+    "message": "The given data was invalid.",
+    "errors": {
+      "end_date": ["The end date must be a date after or equal to start date."]
+    }
+  }
+  ```
+</ResponseField>
+
+---
+
+## Delete Operating Unit
+
+<api method="DELETE" endpoint="/api/v1/operating-units/{id}" auth="bearer" />
+
+Soft deletes an operating unit. The unit will be marked as deleted but retained in the database for audit purposes.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Operating unit ID
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+### Example Request
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X DELETE "https://api.sushigo.local/api/v1/operating-units/5" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Accept: application/json"
+    ```
+  </Tab>
+  
+  <Tab title="JavaScript">
+    ```javascript
+    const response = await fetch('https://api.sushigo.local/api/v1/operating-units/5', {
+      method: 'DELETE',
+      headers: {
+        'Authorization': 'Bearer YOUR_TOKEN',
+        'Accept': 'application/json'
+      }
+    });
+    
+    const data = await response.json();
+    ```
+  </Tab>
+</Tabs>
+
+### Example Response
+
+```json
+{
+  "message": "Operating unit deleted successfully"
+}
+```
+
+### Error Responses
+
+<ResponseField name="404" type="object">
+  Operating unit not found
+  
+  ```json
+  {
+    "message": "Not found"
+  }
+  ```
+</ResponseField>

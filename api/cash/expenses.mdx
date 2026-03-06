@@ -1,0 +1,585 @@
+---
+title: "Cash Expenses"
+description: "Record operational expenses paid from cash register (supplies, utilities, maintenance)"
+---
+
+## Overview
+
+Cash expenses represent operational costs paid directly from the cash register, such as supplies, utilities, or maintenance. Each expense is linked to a cash session and can be paid via CASH, CARD, or TRANSFER. Expenses start as DRAFT and must be posted to affect session balance.
+
+---
+
+## Create Cash Expense
+
+```http
+POST /api/v1/cash-expenses
+```
+
+### Request Body
+
+<ParamField body="cash_session_id" type="integer" required>
+  Cash session ID
+</ParamField>
+
+<ParamField body="tender_type" type="string" required>
+  Payment tender type: `CASH`, `CARD`, or `TRANSFER`
+</ParamField>
+
+<ParamField body="amount" type="number" required>
+  Expense amount (0.01 to 999999.99)
+</ParamField>
+
+<ParamField body="category" type="string" required>
+  Expense category (max 100 characters). Common values: `SUPPLIES`, `MAINTENANCE`, `UTILITIES`, `MARKETING`, `OTHER`
+</ParamField>
+
+<ParamField body="vendor" type="string">
+  Vendor name (max 255 characters)
+</ParamField>
+
+<ParamField body="reference" type="string">
+  Invoice or receipt reference (max 255 characters)
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Additional notes (max 1000 characters)
+</ParamField>
+
+<ParamField body="card_terminal_id" type="integer">
+  Terminal ID (required when `tender_type` is `CARD`)
+</ParamField>
+
+<ParamField body="bank_account_id" type="integer">
+  Bank account ID (required when `tender_type` is `TRANSFER`)
+</ParamField>
+
+<ParamField body="incurred_at" type="string">
+  Expense date/time in ISO 8601 format. Defaults to current time if not provided.
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata
+  
+  <Expandable title="properties">
+    <ResponseField name="receipt_url" type="string">
+      URL to receipt or invoice image
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="integer">
+      Expense ID
+    </ResponseField>
+    
+    <ResponseField name="cash_session_id" type="integer">
+      Session ID
+    </ResponseField>
+    
+    <ResponseField name="tender_type" type="string">
+      Payment tender type
+    </ResponseField>
+    
+    <ResponseField name="amount" type="string">
+      Amount as decimal string
+    </ResponseField>
+    
+    <ResponseField name="category" type="string">
+      Expense category
+    </ResponseField>
+    
+    <ResponseField name="vendor" type="string">
+      Vendor name
+    </ResponseField>
+    
+    <ResponseField name="reference" type="string">
+      Invoice/receipt reference
+    </ResponseField>
+    
+    <ResponseField name="notes" type="string">
+      Additional notes
+    </ResponseField>
+    
+    <ResponseField name="card_terminal_id" type="integer">
+      Terminal ID (for CARD)
+    </ResponseField>
+    
+    <ResponseField name="bank_account_id" type="integer">
+      Bank account ID (for TRANSFER)
+    </ResponseField>
+    
+    <ResponseField name="incurred_at" type="string">
+      Expense timestamp
+    </ResponseField>
+    
+    <ResponseField name="created_by" type="integer">
+      User ID who created the expense
+    </ResponseField>
+    
+    <ResponseField name="posted_by" type="integer">
+      User ID who posted (null if draft)
+    </ResponseField>
+    
+    <ResponseField name="posted_at" type="string">
+      Posted timestamp (null if draft)
+    </ResponseField>
+    
+    <ResponseField name="meta" type="object">
+      Additional metadata
+    </ResponseField>
+    
+    <ResponseField name="cash_session" type="object">
+      Session information
+    </ResponseField>
+    
+    <ResponseField name="card_terminal" type="object">
+      Terminal information (for CARD)
+    </ResponseField>
+    
+    <ResponseField name="bank_account" type="object">
+      Bank account information (for TRANSFER)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/cash-expenses \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cash_session_id": 15,
+    "tender_type": "CASH",
+    "amount": 150.00,
+    "category": "SUPPLIES",
+    "vendor": "Office Depot",
+    "reference": "INV-12345",
+    "notes": "Office supplies purchase",
+    "incurred_at": "2025-12-13T10:30:00-06:00",
+    "meta": {
+      "receipt_url": "https://example.com/receipt.pdf"
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Expense created successfully",
+  "data": {
+    "id": 89,
+    "cash_session_id": 15,
+    "tender_type": "CASH",
+    "amount": "150.0000",
+    "category": "SUPPLIES",
+    "vendor": "Office Depot",
+    "reference": "INV-12345",
+    "notes": "Office supplies purchase",
+    "card_terminal_id": null,
+    "bank_account_id": null,
+    "incurred_at": "2025-12-13T16:30:00+00:00",
+    "created_by": 5,
+    "posted_by": null,
+    "posted_at": null,
+    "meta": {
+      "receipt_url": "https://example.com/receipt.pdf"
+    },
+    "created_at": "2025-12-13T16:35:00+00:00",
+    "updated_at": "2025-12-13T16:35:00+00:00",
+    "cash_session": {
+      "id": 15,
+      "operating_date": "2025-12-13"
+    },
+    "card_terminal": null,
+    "bank_account": null
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## List Cash Expenses
+
+```http
+GET /api/v1/cash-expenses
+```
+
+### Query Parameters
+
+<ParamField query="cash_session_id" type="integer">
+  Filter by cash session ID
+</ParamField>
+
+<ParamField query="category" type="string">
+  Filter by expense category
+</ParamField>
+
+<ParamField query="tender_type" type="string">
+  Filter by tender type: `CASH`, `CARD`, or `TRANSFER`
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by status: `POSTED` or `DRAFT`
+</ParamField>
+
+<ParamField query="date_from" type="string">
+  Filter from date (ISO 8601)
+</ParamField>
+
+<ParamField query="date_to" type="string">
+  Filter to date (ISO 8601)
+</ParamField>
+
+<ParamField query="sort_by" type="string" default="incurred_at">
+  Sort field
+</ParamField>
+
+<ParamField query="sort_order" type="string" default="desc">
+  Sort order: `asc` or `desc`
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+Returns paginated list of expenses with session, terminal, bank account, and user information.
+
+<RequestExample>
+```bash cURL
+curl https://api.sushigo.local/api/v1/cash-expenses?cash_session_id=15&category=SUPPLIES \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "current_page": 1,
+  "data": [
+    {
+      "id": 89,
+      "cash_session_id": 15,
+      "tender_type": "CASH",
+      "amount": "150.0000",
+      "category": "SUPPLIES",
+      "vendor": "Office Depot",
+      "reference": "INV-12345",
+      "incurred_at": "2025-12-13T16:30:00+00:00",
+      "posted_at": null,
+      "cash_session": {
+        "id": 15,
+        "cash_register": {
+          "id": 1,
+          "code": "REG-001"
+        }
+      },
+      "created_by": {
+        "id": 5,
+        "name": "Juan Pérez"
+      }
+    },
+    {
+      "id": 90,
+      "tender_type": "CARD",
+      "amount": "85.50",
+      "category": "SUPPLIES",
+      "vendor": "Costco",
+      "card_terminal": {
+        "id": 1,
+        "name": "Terminal CLIP 1"
+      }
+    }
+  ],
+  "per_page": 15,
+  "total": 2
+}
+```
+</ResponseExample>
+
+---
+
+## Get Cash Expense
+
+```http
+GET /api/v1/cash-expenses/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash expense ID
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  Expense details with session, terminal, bank account, and user information
+</ResponseField>
+
+---
+
+## Update Cash Expense
+
+<Warning>
+Only DRAFT expenses can be updated. Posted expenses are immutable.
+</Warning>
+
+```http
+PUT /api/v1/cash-expenses/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash expense ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="tender_type" type="string">
+  Payment tender type
+</ParamField>
+
+<ParamField body="amount" type="number">
+  Expense amount
+</ParamField>
+
+<ParamField body="category" type="string">
+  Expense category
+</ParamField>
+
+<ParamField body="vendor" type="string">
+  Vendor name
+</ParamField>
+
+<ParamField body="reference" type="string">
+  Invoice/receipt reference
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Additional notes
+</ParamField>
+
+<ParamField body="card_terminal_id" type="integer">
+  Terminal ID (required for CARD)
+</ParamField>
+
+<ParamField body="bank_account_id" type="integer">
+  Bank account ID (required for TRANSFER)
+</ParamField>
+
+<ParamField body="incurred_at" type="string">
+  Expense date/time
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Updated expense object
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X PUT https://api.sushigo.local/api/v1/cash-expenses/89 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount": 175.00,
+    "notes": "Office supplies - updated amount"
+  }'
+```
+</RequestExample>
+
+---
+
+## Post Cash Expense
+
+<Note>
+Finalizes the expense by marking it as posted. Once posted, the expense affects the session balance calculation and cannot be modified or deleted.
+</Note>
+
+```http
+POST /api/v1/cash-expenses/{id}/post
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash expense ID
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Posted expense with `posted_at` timestamp and `posted_by` user
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/cash-expenses/89/post \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Expense posted successfully",
+  "data": {
+    "id": 89,
+    "cash_session_id": 15,
+    "tender_type": "CASH",
+    "amount": "150.0000",
+    "category": "SUPPLIES",
+    "posted_by": 5,
+    "posted_at": "2025-12-13T19:00:00+00:00",
+    "posted_by": {
+      "id": 5,
+      "name": "Juan Pérez"
+    }
+  }
+}
+```
+
+```json 422 Already Posted
+{
+  "message": "Expense already posted"
+}
+```
+</ResponseExample>
+
+---
+
+## Delete Cash Expense
+
+<Warning>
+Only DRAFT expenses can be deleted. Posted expenses are immutable.
+</Warning>
+
+```http
+DELETE /api/v1/cash-expenses/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash expense ID
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X DELETE https://api.sushigo.local/api/v1/cash-expenses/89 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Expense deleted successfully"
+}
+```
+
+```json 422 Cannot Delete Posted
+{
+  "message": "Cannot delete posted expense"
+}
+```
+</ResponseExample>
+
+---
+
+## Common Expense Categories
+
+<CardGroup cols={2}>
+  <Card title="SUPPLIES" icon="box">
+    Office supplies, cleaning products, consumables
+  </Card>
+  
+  <Card title="MAINTENANCE" icon="wrench">
+    Equipment repairs, facility maintenance
+  </Card>
+  
+  <Card title="UTILITIES" icon="bolt">
+    Electricity, water, gas, internet
+  </Card>
+  
+  <Card title="MARKETING" icon="bullhorn">
+    Advertising, promotional materials
+  </Card>
+  
+  <Card title="DELIVERY" icon="truck">
+    Delivery service fees, fuel
+  </Card>
+  
+  <Card title="OTHER" icon="ellipsis">
+    Miscellaneous operational expenses
+  </Card>
+</CardGroup>
+
+---
+
+## Tender Type Rules
+
+<Note>
+Each tender type has specific requirements:
+</Note>
+
+- **CASH**: Amount is deducted from cash drawer. No additional fields required.
+- **CARD**: Requires `card_terminal_id` to track which terminal processed the payment.
+- **TRANSFER**: Requires `bank_account_id` to track which bank account was used.
+
+---
+
+## Workflow Example
+
+<Steps>
+  <Step title="Create Expense">
+    Record expense with vendor, category, and payment method (DRAFT status)
+  </Step>
+  
+  <Step title="Attach Receipt">
+    Upload receipt/invoice to `meta.receipt_url`
+  </Step>
+  
+  <Step title="Review">
+    Manager reviews expense and verifies documentation
+  </Step>
+  
+  <Step title="Post Expense">
+    Post expense to finalize and include in session balance
+  </Step>
+  
+  <Step title="Session Closing">
+    When all expenses are posted, close the cash session
+  </Step>
+</Steps>

@@ -1,0 +1,688 @@
+---
+title: 'Installation'
+description: 'Comprehensive guide to installing and configuring SushiGo'
+---
+
+This guide covers both Docker Compose setup (recommended) and manual installation for development and production environments.
+
+## System Requirements
+
+### For Docker Setup (Recommended)
+
+- **Docker Engine** 20.10 or higher
+- **Docker Compose** 2.0 or higher
+- **Git** for version control
+- **Minimum Resources:**
+  - 4 GB RAM
+  - 10 GB disk space
+  - 2 CPU cores
+
+### For Manual Setup
+
+#### Backend Requirements
+- **PHP** 8.2 or higher
+- **Composer** 2.x
+- **PostgreSQL** 15 or higher
+- **PHP Extensions:**
+  - OpenSSL
+  - PDO
+  - Mbstring
+  - Tokenizer
+  - XML
+  - Ctype
+  - JSON
+  - BCMath
+  - pgsql
+
+#### Frontend Requirements
+- **Node.js** 18.x or higher
+- **npm** 9.x or higher
+
+## Docker Compose Setup (Recommended)
+
+Docker Compose provides a one-command setup that includes all services with proper networking and configuration.
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone <repository-url>
+    cd sushigo
+    ```
+  </Step>
+
+  <Step title="Configure environment variables (optional)">
+    The stack works with default values, but you can customize them:
+    
+    ```bash
+    # Create .env file in project root (optional)
+    cp .env.example .env
+    ```
+    
+    Key environment variables:
+    
+    ```bash
+    # Database
+    POSTGRES_USER=admin
+    POSTGRES_PASSWORD=admin
+    POSTGRES_DB=mydb
+    
+    # Vite Dev Server
+    VITE_PORT=5173
+    VITE_HMR_HOST=sushigo.local
+    
+    # PgAdmin
+    PGADMIN_DEFAULT_EMAIL=admin@admin.com
+    PGADMIN_DEFAULT_PASSWORD=admin
+    ```
+  </Step>
+
+  <Step title="Build and start services">
+    ```bash
+    docker compose up --build
+    ```
+    
+    This single command will:
+    - Build the development container image
+    - Start PostgreSQL, nginx, PgAdmin, and MailHog
+    - Install all Composer dependencies (API)
+    - Install all NPM dependencies (API + webapp)
+    - Generate Laravel application key
+    - Wait for PostgreSQL to be ready
+    - Run database migrations
+    - Execute seeders for initial data
+    - Generate Laravel Passport OAuth keys (600 permissions)
+    - Create storage symlinks
+    - Generate Swagger API documentation
+    - Start Apache web server
+    - Start Vite dev server with HMR
+    
+    <Note>
+      The initialization script is located at `docker/app/config/dev/init.sh` and runs automatically on container startup.
+    </Note>
+  </Step>
+
+  <Step title="Verify the installation">
+    Check that all services are healthy:
+    
+    ```bash
+    docker compose ps
+    ```
+    
+    You should see containers for:
+    - `dev_container` (API + webapp)
+    - `nginx_proxy`
+    - `postgres_container`
+    - `pgadmin_container`
+    - `mailhog_container`
+  </Step>
+</Steps>
+
+### Docker Services Overview
+
+The `docker-compose.yml` defines the following services:
+
+<AccordionGroup>
+  <Accordion title="dev (Main Application Container)">
+    - **Image:** `sushigo/dev:local`
+    - **Ports:** 5173 (Vite), 80/443 (Apache)
+    - **Contains:** PHP 8.2, Apache, Node.js, Composer
+    - **Auto-runs:** Migrations, seeders, Supervisor
+    - **Health check:** `/api/v1/health` endpoint
+  </Accordion>
+
+  <Accordion title="nginx (Reverse Proxy)">
+    - **Image:** `nginx:alpine`
+    - **Ports:** 80, 443
+    - **Purpose:** Routes requests to `sushigo.local` and `api.sushigo.local`
+    - **SSL:** Self-signed certificates in `docker/app/config/dev/cert/`
+  </Accordion>
+
+  <Accordion title="pgsql (PostgreSQL Database)">
+    - **Image:** `postgres:15`
+    - **Port:** 5432
+    - **Volume:** Persistent storage in `pg_data` volume
+    - **Databases:** `mydb` (dev), `mydb_test` (testing)
+  </Accordion>
+
+  <Accordion title="pgadmin (Database Admin UI)">
+    - **Image:** `dpage/pgadmin4:7.6`
+    - **Port:** 5050
+    - **Credentials:** admin@admin.com / admin
+    - **Pre-configured:** Server connection to `pgsql` container
+  </Accordion>
+
+  <Accordion title="mailhog (Email Testing)">
+    - **Image:** `mailhog/mailhog`
+    - **Port:** 8025 (web UI), 1025 (SMTP)
+    - **Purpose:** Capture all outgoing emails for testing
+  </Accordion>
+</AccordionGroup>
+
+### Access URLs
+
+Once the Docker stack is running:
+
+| Service | URL | Notes |
+|---------|-----|-------|
+| Webapp (nginx) | https://sushigo.local | Proxied through nginx with SSL |
+| Webapp (direct) | http://localhost:5173 | Direct Vite dev server with HMR |
+| API | https://api.sushigo.local/api/v1 | REST API endpoints |
+| Swagger UI | http://localhost:8080/api/documentation | Interactive API docs |
+| PgAdmin | http://localhost:5050 | Database admin (admin@admin.com / admin) |
+| MailHog | http://localhost:8025 | Email testing interface |
+
+<Note>
+  To access `sushigo.local` and `api.sushigo.local`, add these entries to your `/etc/hosts` file:
+  
+  ```
+  127.0.0.1 sushigo.local
+  127.0.0.1 api.sushigo.local
+  ```
+</Note>
+
+## Manual Setup
+
+For environments where Docker is not available, you can run the Laravel API and React webapp manually.
+
+### Backend Setup (Laravel API)
+
+<Steps>
+  <Step title="Install PHP dependencies">
+    ```bash
+    cd code/api
+    composer install
+    ```
+  </Step>
+
+  <Step title="Configure environment">
+    ```bash
+    cp .env.example .env
+    ```
+    
+    Edit `.env` and configure database credentials:
+    
+    ```bash
+    DB_CONNECTION=pgsql
+    DB_HOST=localhost  # or your PostgreSQL host
+    DB_PORT=5432
+    DB_DATABASE=sushigo
+    DB_USERNAME=your_db_user
+    DB_PASSWORD=your_db_password
+    
+    APP_URL=http://localhost:8000
+    API_URL=http://localhost:8000
+    ```
+  </Step>
+
+  <Step title="Generate application key">
+    ```bash
+    php artisan key:generate
+    ```
+  </Step>
+
+  <Step title="Setup database">
+    Create the PostgreSQL database:
+    
+    ```bash
+    # Using psql
+    psql -U postgres
+    CREATE DATABASE sushigo;
+    \q
+    ```
+    
+    Run migrations:
+    
+    ```bash
+    php artisan migrate --force
+    ```
+  </Step>
+
+  <Step title="Generate Passport keys">
+    Laravel Passport requires RSA keys for OAuth2 token encryption:
+    
+    ```bash
+    php artisan passport:keys
+    ```
+    
+    This creates:
+    - `storage/oauth-private.key` (600 permissions)
+    - `storage/oauth-public.key` (600 permissions)
+    
+    <Warning>
+      Keep these keys secure and never commit them to version control. They are listed in `.gitignore`.
+    </Warning>
+  </Step>
+
+  <Step title="Seed initial data">
+    ```bash
+    php artisan db:seed --force
+    ```
+    
+    This creates:
+    - Default roles and permissions (Spatie)
+    - Super admin account
+    - Test users
+    - Sample inventory data (optional)
+    
+    Verify seeders ran successfully:
+    
+    ```bash
+    php artisan seeder:status
+    ```
+  </Step>
+
+  <Step title="Create storage symlink">
+    ```bash
+    php artisan storage:link
+    ```
+  </Step>
+
+  <Step title="Generate API documentation">
+    ```bash
+    php artisan l5-swagger:generate
+    ```
+  </Step>
+
+  <Step title="Start the development server">
+    ```bash
+    php artisan serve
+    ```
+    
+    The API will be available at `http://localhost:8000`.
+    
+    <Note>
+      For production, configure Apache or Nginx to serve the `public/` directory. See Laravel deployment documentation.
+    </Note>
+  </Step>
+</Steps>
+
+### Frontend Setup (React Webapp)
+
+<Steps>
+  <Step title="Install Node.js dependencies">
+    ```bash
+    cd code/webapp
+    npm install
+    ```
+  </Step>
+
+  <Step title="Configure API endpoint">
+    The webapp connects to the API via the base URL configured in `src/lib/api-client.ts`.
+    
+    If your API runs on a different URL, update the environment variable:
+    
+    ```bash
+    # Create .env.local in code/webapp/
+    VITE_API_URL=http://localhost:8000/api/v1
+    ```
+  </Step>
+
+  <Step title="Start the development server">
+    ```bash
+    npm run dev
+    ```
+    
+    The webapp will be available at `http://localhost:5173`.
+  </Step>
+
+  <Step title="Build for production">
+    ```bash
+    npm run build
+    ```
+    
+    Production-ready files will be in `dist/`.
+  </Step>
+</Steps>
+
+## Database Configuration
+
+### Environment Variables
+
+Key database-related variables in `code/api/.env`:
+
+```bash
+DB_CONNECTION=pgsql
+DB_HOST=pgsql           # Use 'localhost' for manual setup
+DB_PORT=5432
+DB_DATABASE=mydb
+DB_USERNAME=admin
+DB_PASSWORD=admin
+
+# Sessions stored in database
+SESSION_DRIVER=database
+SESSION_LIFETIME=120
+
+# Cache stored in database
+CACHE_STORE=database
+
+# Queue stored in database
+QUEUE_CONNECTION=database
+```
+
+### Migrations
+
+SushiGo uses Laravel migrations for database schema management:
+
+```bash
+# Run pending migrations
+php artisan migrate
+
+# Check migration status
+php artisan migrate:status
+
+# Rollback last batch
+php artisan migrate:rollback
+
+# Fresh install (drops all tables)
+php artisan migrate:fresh
+
+# Fresh install with seeders
+php artisan migrate:fresh --seed
+```
+
+### Seeders
+
+SushiGo uses a tracked seeder system to prevent duplicate data:
+
+```bash
+# Run all seeders
+php artisan db:seed
+
+# Run specific seeder
+php artisan db:seed --class=RolesAndPermissionsSeeder
+
+# Check which seeders have run
+php artisan seeder:status
+
+# Force re-run seeders
+php artisan db:seed --force
+```
+
+Seeder configuration is in `config/seeders.php` with support for:
+- **LockedSeeder:** Critical seeders that run once
+- **OnceSeeder:** Initial data seeders
+- **RepeatableSeeder:** Can be re-run safely
+
+## OAuth2 / Passport Configuration
+
+SushiGo uses Laravel Passport for OAuth2 authentication.
+
+### Generate Keys
+
+Passport requires RSA key pairs:
+
+```bash
+cd code/api
+php artisan passport:keys
+```
+
+This creates:
+- `storage/oauth-private.key` - Private key for signing tokens
+- `storage/oauth-public.key` - Public key for verifying tokens
+
+<Warning>
+  **Security Notes:**
+  - Both keys have 600 permissions (owner read/write only)
+  - Keys are owned by `www-data` in Docker
+  - Never commit keys to version control
+  - Regenerate keys if compromised
+</Warning>
+
+### Test OAuth Flow
+
+```bash
+# Password grant endpoint (used by webapp)
+POST https://api.sushigo.local/oauth/token
+Content-Type: application/json
+
+{
+  "grant_type": "password",
+  "client_id": "your-client-id",
+  "client_secret": "your-client-secret",
+  "username": "admin@sushigo.com",
+  "password": "admin123456",
+  "scope": "*"
+}
+```
+
+The webapp handles token management automatically via Zustand store (`src/stores/auth.store.ts`).
+
+## Default User Accounts
+
+After running seeders, these accounts are available:
+
+| Role | Email | Password | Permissions |
+|------|-------|----------|-------------|
+| Super Admin | superadmin@sushigo.com | admin123456 | All permissions |
+| Admin | admin@sushigo.com | admin123456 | Admin permissions |
+| Inventory Manager | inventory@sushigo.com | inventory123456 | Inventory operations |
+
+<Warning>
+  **Production Security:**
+  - Change all default passwords immediately
+  - Use strong, unique passwords
+  - Enable 2FA if implementing authentication extensions
+  - Review and audit user permissions regularly
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Composer install fails">
+    **Symptoms:** Dependency conflicts or memory errors during `composer install`
+    
+    **Solutions:**
+    
+    ```bash
+    # Increase PHP memory limit
+    php -d memory_limit=512M /usr/bin/composer install
+    
+    # Clear Composer cache
+    composer clear-cache
+    
+    # Remove vendor and reinstall
+    rm -rf vendor
+    composer install --no-scripts
+    composer dump-autoload
+    ```
+  </Accordion>
+
+  <Accordion title="Database connection refused">
+    **Symptoms:** `SQLSTATE[08006] Connection refused` or `could not connect to server`
+    
+    **Solutions:**
+    
+    1. Verify PostgreSQL is running:
+       ```bash
+       # Docker
+       docker compose ps pgsql
+       
+       # Manual
+       sudo systemctl status postgresql
+       ```
+    
+    2. Check credentials in `.env` match database
+    3. Verify `DB_HOST` is correct:
+       - Docker: `pgsql` (service name)
+       - Manual: `localhost` or `127.0.0.1`
+    4. Check firewall allows port 5432
+  </Accordion>
+
+  <Accordion title="Passport keys permission denied">
+    **Symptoms:** `file_get_contents(storage/oauth-public.key): failed to open stream`
+    
+    **Solutions:**
+    
+    ```bash
+    # Docker
+    docker exec -it dev_container bash -c "cd /app/code/api && php artisan passport:keys --force"
+    docker exec -it dev_container chown www-data:www-data /app/code/api/storage/oauth-*.key
+    docker exec -it dev_container chmod 600 /app/code/api/storage/oauth-*.key
+    
+    # Manual
+    php artisan passport:keys --force
+    chown www-data:www-data storage/oauth-*.key
+    chmod 600 storage/oauth-*.key
+    ```
+  </Accordion>
+
+  <Accordion title="Storage permission errors">
+    **Symptoms:** Laravel cannot write to `storage/` or `bootstrap/cache/`
+    
+    **Solutions:**
+    
+    ```bash
+    # Docker
+    docker exec -it dev_container chown -R www-data:www-data /app/code/api/storage /app/code/api/bootstrap/cache
+    docker exec -it dev_container chmod -R 775 /app/code/api/storage /app/code/api/bootstrap/cache
+    
+    # Manual (Linux)
+    sudo chown -R www-data:www-data storage bootstrap/cache
+    sudo chmod -R 775 storage bootstrap/cache
+    
+    # Manual (macOS with Valet)
+    chmod -R 775 storage bootstrap/cache
+    ```
+  </Accordion>
+
+  <Accordion title="Vite dev server HMR not working">
+    **Symptoms:** Changes to React components don't hot-reload
+    
+    **Solutions:**
+    
+    1. Check `VITE_HMR_HOST` in `docker-compose.yml` matches your domain
+    2. Ensure WebSocket connections aren't blocked by firewall
+    3. Try accessing via direct port: http://localhost:5173
+    4. Check Vite config in `code/webapp/vite.config.ts`
+  </Accordion>
+
+  <Accordion title="CORS errors in browser console">
+    **Symptoms:** `Access-Control-Allow-Origin` errors when webapp calls API
+    
+    **Solutions:**
+    
+    1. Verify `config/cors.php` allows your webapp origin
+    2. Check `.env` has correct `APP_URL` and `API_URL`
+    3. Ensure middleware `\Illuminate\Http\Middleware\HandleCors::class` is in `bootstrap/app.php`
+    4. Clear config cache: `php artisan config:clear`
+  </Accordion>
+
+  <Accordion title="Test database not found">
+    **Symptoms:** Tests fail with `database "mydb_test" does not exist`
+    
+    **Solutions:**
+    
+    ```bash
+    # Docker
+    docker exec -it postgres_container psql -U admin -d mydb -c "CREATE DATABASE mydb_test;"
+    
+    # Manual
+    psql -U postgres -c "CREATE DATABASE mydb_test;"
+    ```
+    
+    The test database is automatically created by the init script in Docker: `docker/pgsql/init-test-db.sh`
+  </Accordion>
+
+  <Accordion title="Port conflicts">
+    **Symptoms:** `bind: address already in use` when starting Docker
+    
+    **Solutions:**
+    
+    ```bash
+    # Check what's using ports
+    lsof -i :80
+    lsof -i :443
+    lsof -i :5173
+    lsof -i :5432
+    
+    # Stop conflicting services
+    sudo systemctl stop apache2
+    sudo systemctl stop nginx
+    
+    # Or modify ports in docker-compose.yml
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Production Considerations
+
+When deploying to production:
+
+<CardGroup cols={2}>
+  <Card title="Environment" icon="gear">
+    - Set `APP_ENV=production`
+    - Set `APP_DEBUG=false`
+    - Use strong `APP_KEY`
+    - Configure proper `APP_URL`
+  </Card>
+  
+  <Card title="Database" icon="database">
+    - Use managed PostgreSQL
+    - Regular automated backups
+    - Connection pooling (PgBouncer)
+    - SSL/TLS connections
+  </Card>
+  
+  <Card title="Security" icon="shield">
+    - Change all default passwords
+    - Use HTTPS with valid certificates
+    - Configure firewall rules
+    - Regular security updates
+    - Review CORS settings
+  </Card>
+  
+  <Card title="Performance" icon="rocket">
+    - Enable OPcache for PHP
+    - Use Redis for cache/sessions
+    - Enable Laravel optimization:
+      - `php artisan config:cache`
+      - `php artisan route:cache`
+      - `php artisan view:cache`
+    - Build React app: `npm run build`
+  </Card>
+</CardGroup>
+
+## Useful Commands Reference
+
+```bash
+# Laravel API
+php artisan migrate                    # Run migrations
+php artisan db:seed                    # Run seeders
+php artisan seeder:status              # Check seeder status
+php artisan passport:keys              # Generate OAuth keys
+php artisan l5-swagger:generate        # Generate API docs
+php artisan test                       # Run tests
+php artisan config:clear               # Clear config cache
+php artisan route:list                 # List all routes
+
+# React Webapp
+npm run dev                            # Start dev server
+npm run build                          # Production build
+npm run lint                           # Run ESLint
+npm run typecheck                      # TypeScript check
+npm run test                           # Run tests
+
+# Docker
+docker compose up --build              # Build and start
+docker compose down                    # Stop all services
+docker compose restart                 # Restart services
+docker compose logs -f dev             # Follow dev logs
+docker exec -it dev_container bash     # Access container shell
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Guide" icon="laptop-code" href="/development/environment-setup">
+    Learn about the tech stack, conventions, and workflows
+  </Card>
+  <Card title="Architecture" icon="building" href="/core/architecture">
+    Understand the domain model and system design
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference">
+    Explore REST endpoints and test with Swagger
+  </Card>
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Write and run backend and E2E tests
+  </Card>
+</CardGroup>

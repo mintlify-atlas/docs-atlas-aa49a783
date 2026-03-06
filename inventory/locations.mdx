@@ -1,0 +1,678 @@
+---
+title: "Inventory Locations"
+description: "Configure and manage physical and logical inventory locations within operating units"
+---
+
+## Overview
+
+Inventory Locations represent physical or logical zones within an Operating Unit where stock is held. Each location maintains separate stock records and enables precise tracking of inventory movement between zones.
+
+<Info>
+  **Example**: A branch might have MAIN (warehouse), KITCHEN (prep area), BAR (beverage station), and WASTE (spoilage tracking) as separate locations.
+</Info>
+
+## Location Types
+
+SushiGo supports six predefined location types, each with specific operational semantics:
+
+### MAIN - Primary Warehouse
+
+<ParamField body="type" type="enum" default="MAIN">
+  Primary storage location for the operating unit
+</ParamField>
+
+**Characteristics**:
+- Typically set as `is_primary = true`
+- Receives opening balances and purchase receipts
+- Source for transfers to other locations
+- Highest priority in allocation logic
+
+**Example**: Main warehouse, central storage room
+
+### KITCHEN - Food Preparation
+
+<ParamField body="type" type="enum" default="KITCHEN">
+  Prep area where ingredients are consumed for production
+</ParamField>
+
+**Characteristics**:
+- Receives transfers from MAIN
+- Source for production consumption
+- May have multiple instances (Kitchen 1, Kitchen 2)
+
+**Example**: Sushi prep station, hot kitchen, salad station
+
+### BAR - Beverage Station
+
+<ParamField body="type" type="enum" default="BAR">
+  Dedicated location for beverage inventory
+</ParamField>
+
+**Characteristics**:
+- Receives transfers from MAIN
+- Tracks cocktail ingredients, bottled drinks, etc.
+- Separate from food prep for control
+
+**Example**: Main bar, service bar, cocktail station
+
+### TEMP - Temporary Location
+
+<ParamField body="type" type="enum" default="TEMP">
+  Temporary holding location (events, catering)
+</ParamField>
+
+**Characteristics**:
+- Used for events or temporary operations
+- Stock typically returned to MAIN after event closure
+- Time-bounded (start_date, end_date on Operating Unit)
+
+**Example**: Event booth, catering truck, pop-up location
+
+### RETURN - Return/Quarantine
+
+<ParamField body="type" type="enum" default="RETURN">
+  Holding area for returned or quarantined items
+</ParamField>
+
+**Characteristics**:
+- Receives customer returns or damaged goods
+- Quality inspection before moving to MAIN or WASTE
+- Separate costing and reporting
+
+**Example**: Returns bay, QC quarantine, damaged goods hold
+
+### WASTE - Spoilage/Loss
+
+<ParamField body="type" type="enum" default="WASTE">
+  Virtual location for tracking spoilage, breakage, and loss
+</ParamField>
+
+**Characteristics**:
+- Receives stock via CONSUMPTION movements
+- Does not transfer out (one-way only)
+- Used for loss analysis and variance reports
+
+**Example**: Spoiled items, broken equipment, expired food
+
+## Location Fields
+
+<ParamField body="operating_unit_id" type="integer" required>
+  Parent operating unit ID (branch or event)
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Location name (max 255 chars)
+  
+  **Examples**: `Main Warehouse`, `Kitchen - Prep 1`, `Bar Central`
+</ParamField>
+
+<ParamField body="type" type="enum" required>
+  Location type: `MAIN`, `TEMP`, `KITCHEN`, `BAR`, `RETURN`, `WASTE`
+</ParamField>
+
+<ParamField body="is_primary" type="boolean" default="false">
+  Whether this is the primary location for the operating unit
+  
+  <Info>Each operating unit should have exactly one primary location</Info>
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status (inactive locations hidden from selection)
+</ParamField>
+
+<ParamField body="priority" type="integer" default="0">
+  Display/allocation priority (higher = first)
+  
+  Used for sorting in UI and stock allocation logic
+</ParamField>
+
+<ParamField body="notes" type="text">
+  Additional notes or instructions
+</ParamField>
+
+<ParamField body="meta" type="jsonb" default="{}">
+  Custom metadata (capacity, address, contact, etc.)
+</ParamField>
+
+## API Endpoints
+
+### Create Location
+
+```http
+POST /api/v1/inventory-locations
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "operating_unit_id": 1,
+  "name": "Main Warehouse",
+  "type": "MAIN",
+  "is_primary": true,
+  "is_active": true,
+  "priority": 100,
+  "notes": "Central storage facility - refrigerated section available"
+}
+```
+
+<ResponseExample>
+```json Response (201 Created)
+{
+  "status": 201,
+  "data": {
+    "id": 1,
+    "operating_unit_id": 1,
+    "name": "Main Warehouse",
+    "type": "MAIN",
+    "is_primary": true,
+    "is_active": true,
+    "priority": 100,
+    "notes": "Central storage facility - refrigerated section available",
+    "meta": {},
+    "created_at": "2026-03-06T10:00:00Z",
+    "updated_at": "2026-03-06T10:00:00Z"
+  }
+}
+```
+</ResponseExample>
+
+### List Locations
+
+```http
+GET /api/v1/inventory-locations?operating_unit_id=1&type=KITCHEN&is_active=true
+Authorization: Bearer {token}
+```
+
+<ParamField query="operating_unit_id" type="integer">
+  Filter by operating unit
+</ParamField>
+
+<ParamField query="type" type="enum">
+  Filter by location type
+</ParamField>
+
+<ParamField query="is_primary" type="boolean">
+  Filter primary locations
+</ParamField>
+
+<ParamField query="is_active" type="boolean">
+  Filter active/inactive locations
+</ParamField>
+
+<ResponseExample>
+```json Response (200 OK)
+{
+  "status": 200,
+  "data": [
+    {
+      "id": 1,
+      "operating_unit_id": 1,
+      "name": "Main Warehouse",
+      "type": "MAIN",
+      "is_primary": true,
+      "is_active": true,
+      "priority": 100,
+      "operating_unit": {
+        "id": 1,
+        "name": "SushiGo Centro - Main Inventory",
+        "type": "BRANCH_MAIN"
+      }
+    },
+    {
+      "id": 2,
+      "operating_unit_id": 1,
+      "name": "Kitchen - Prep 1",
+      "type": "KITCHEN",
+      "is_primary": false,
+      "is_active": true,
+      "priority": 50
+    }
+  ]
+}
+```
+</ResponseExample>
+
+### Show Location with Stock
+
+```http
+GET /api/v1/inventory-locations/{id}
+Authorization: Bearer {token}
+```
+
+Returns location details with current stock summary.
+
+<ResponseExample>
+```json Response (200 OK)
+{
+  "status": 200,
+  "data": {
+    "id": 1,
+    "name": "Main Warehouse",
+    "type": "MAIN",
+    "is_primary": true,
+    "stock_summary": {
+      "total_variants": 45,
+      "total_value": 125340.50,
+      "low_stock_variants": 3
+    },
+    "recent_movements": [
+      {
+        "id": 123,
+        "item_variant": "Salmon 1kg",
+        "qty": 10.0,
+        "reason": "TRANSFER",
+        "posted_at": "2026-03-06T09:45:00Z"
+      }
+    ]
+  }
+}
+```
+</ResponseExample>
+
+### Update Location
+
+```http
+PUT /api/v1/inventory-locations/{id}
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "Main Warehouse - Expanded",
+  "priority": 150,
+  "notes": "Expanded capacity with new freezer units"
+}
+```
+
+<Warning>
+  Cannot change `type` or `operating_unit_id` after creation
+</Warning>
+
+### Delete Location
+
+```http
+DELETE /api/v1/inventory-locations/{id}
+Authorization: Bearer {token}
+```
+
+Soft deletes the location (requires zero stock and no pending movements).
+
+## Real-World Examples
+
+### Example 1: Single Branch Setup
+
+**Operating Unit**: SushiGo Centro (BRANCH_MAIN)
+
+**Locations**:
+
+```json
+[
+  {
+    "name": "Main Warehouse",
+    "type": "MAIN",
+    "is_primary": true,
+    "priority": 100
+  },
+  {
+    "name": "Kitchen - Sushi Bar",
+    "type": "KITCHEN",
+    "priority": 50
+  },
+  {
+    "name": "Kitchen - Hot Kitchen",
+    "type": "KITCHEN",
+    "priority": 50
+  },
+  {
+    "name": "Bar",
+    "type": "BAR",
+    "priority": 40
+  },
+  {
+    "name": "Waste & Spoilage",
+    "type": "WASTE",
+    "priority": 0
+  }
+]
+```
+
+**Daily Flow**:
+1. Opening balances registered at MAIN
+2. Morning prep: transfer ingredients MAIN → KITCHEN
+3. Service: consumption from KITCHEN (reason: CONSUMPTION)
+4. Spoilage: transfer KITCHEN → WASTE (reason: CONSUMPTION)
+
+### Example 2: Event Setup
+
+**Operating Unit**: Festival Nikkei 2026 (EVENT_TEMP)
+
+**Locations**:
+
+```json
+[
+  {
+    "name": "Event Main Storage",
+    "type": "MAIN",
+    "is_primary": true,
+    "priority": 100,
+    "notes": "Refrigerated truck onsite"
+  },
+  {
+    "name": "Prep Tent A",
+    "type": "TEMP",
+    "priority": 50
+  },
+  {
+    "name": "Sales Booth 1",
+    "type": "TEMP",
+    "priority": 50
+  },
+  {
+    "name": "Sales Booth 2",
+    "type": "TEMP",
+    "priority": 50
+  }
+]
+```
+
+**Event Flow**:
+1. Pre-event: transfer from branch MAIN → event MAIN
+2. During event: transfers event MAIN → prep tents → booths
+3. Post-event: count remaining stock, transfer back to branch MAIN
+4. Event closure: generate profitability report
+
+### Example 3: Multi-Kitchen Branch
+
+**Operating Unit**: SushiGo Polanco (Large Format)
+
+**Locations**:
+
+```json
+[
+  {
+    "name": "Central Warehouse",
+    "type": "MAIN",
+    "is_primary": true,
+    "priority": 100
+  },
+  {
+    "name": "Sushi Bar - Station 1",
+    "type": "KITCHEN",
+    "priority": 60,
+    "meta": { "capacity": "2 chefs", "station_type": "nigiri" }
+  },
+  {
+    "name": "Sushi Bar - Station 2",
+    "type": "KITCHEN",
+    "priority": 60,
+    "meta": { "capacity": "2 chefs", "station_type": "rolls" }
+  },
+  {
+    "name": "Hot Kitchen",
+    "type": "KITCHEN",
+    "priority": 55,
+    "meta": { "station_type": "hot_dishes" }
+  },
+  {
+    "name": "Main Bar",
+    "type": "BAR",
+    "priority": 50
+  },
+  {
+    "name": "Service Bar",
+    "type": "BAR",
+    "priority": 45
+  },
+  {
+    "name": "Returns & QC",
+    "type": "RETURN",
+    "priority": 10
+  },
+  {
+    "name": "Waste Tracking",
+    "type": "WASTE",
+    "priority": 0
+  }
+]
+```
+
+## Location Workflows
+
+### Workflow 1: Initial Location Setup
+
+<Steps>
+  <Step title="Create Primary Location">
+    POST `/api/v1/inventory-locations` with `type=MAIN`, `is_primary=true`
+  </Step>
+  <Step title="Create Operational Locations">
+    Add KITCHEN, BAR locations with lower priority
+  </Step>
+  <Step title="Create Support Locations">
+    Add RETURN, WASTE as needed
+  </Step>
+  <Step title="Set Priorities">
+    Assign priorities for display order (MAIN=100, KITCHEN=50, WASTE=0)
+  </Step>
+</Steps>
+
+### Workflow 2: Stock Allocation Flow
+
+<Steps>
+  <Step title="Receive at Primary">
+    Register opening balance or receipt at MAIN location
+  </Step>
+  <Step title="Transfer to Working Locations">
+    Move stock MAIN → KITCHEN/BAR for daily operations
+  </Step>
+  <Step title="Consume from Working Locations">
+    Record consumption (SALE or CONSUMPTION) from KITCHEN/BAR
+  </Step>
+  <Step title="Track Waste">
+    Move spoiled items to WASTE location for reporting
+  </Step>
+</Steps>
+
+### Workflow 3: End-of-Day Count
+
+<Steps>
+  <Step title="Count Each Location">
+    Physical count at each active location
+  </Step>
+  <Step title="Record Variances">
+    Register adjustments (reason: COUNT_VARIANCE)
+  </Step>
+  <Step title="Consolidate Stock (Optional)">
+    Transfer unused stock from KITCHEN/BAR back to MAIN
+  </Step>
+  <Step title="Generate Reports">
+    Variance report, consumption analysis, loss summary
+  </Step>
+</Steps>
+
+## Business Rules
+
+<CardGroup cols={2}>
+  <Card title="One Primary per Unit" icon="crown">
+    Each operating unit must have exactly one primary location
+  </Card>
+  <Card title="Type Immutability" icon="lock">
+    Location type cannot be changed after creation
+  </Card>
+  <Card title="Zero Stock Deletion" icon="trash-can">
+    Can only delete locations with zero stock
+  </Card>
+  <Card title="WASTE One-Way" icon="arrow-right">
+    WASTE locations only receive (never transfer out)
+  </Card>
+</CardGroup>
+
+### Priority Guidelines
+
+| Type | Suggested Priority | Reasoning |
+|------|-------------------|-----------|
+| MAIN | 100 | Default source for allocations |
+| KITCHEN | 40-60 | Active working locations |
+| BAR | 40-50 | Active working locations |
+| TEMP | 30-50 | Event-specific, temporary |
+| RETURN | 10-20 | Inspection/quarantine area |
+| WASTE | 0 | Tracking only, no allocations |
+
+## Database Schema
+
+### inventory_locations Table
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | bigint | PK, auto-increment |
+| operating_unit_id | bigint | FK → operating_units.id, NOT NULL |
+| name | varchar(255) | NOT NULL |
+| type | enum | IN ('MAIN', 'TEMP', 'KITCHEN', 'BAR', 'RETURN', 'WASTE') |
+| is_primary | boolean | DEFAULT false |
+| is_active | boolean | DEFAULT true |
+| priority | integer | DEFAULT 0 |
+| notes | text | NULLABLE |
+| meta | jsonb | DEFAULT '{}' |
+| created_at | timestamp | |
+| updated_at | timestamp | |
+| deleted_at | timestamp | NULLABLE |
+
+**Indexes**:
+- `idx_inventory_locations_operating_unit` on (operating_unit_id)
+- `idx_inventory_locations_type` on (type)
+- `idx_inventory_locations_priority` on (priority DESC, name ASC)
+
+**Constraints**:
+- Unique: (operating_unit_id, name)
+- Check: `priority >= 0`
+
+## Integration Points
+
+### With Stock
+
+Each location has many `Stock` records (one per item variant):
+
+```sql
+SELECT 
+  il.name AS location,
+  iv.name AS variant,
+  s.on_hand,
+  s.reserved,
+  s.available
+FROM inventory_locations il
+JOIN stock s ON s.inventory_location_id = il.id
+JOIN item_variants iv ON iv.id = s.item_variant_id
+WHERE il.id = 1 AND s.available > 0
+ORDER BY iv.name;
+```
+
+### With Stock Movements
+
+Locations are source and target for movements:
+
+```sql
+-- Movements FROM this location (outbound)
+SELECT * FROM stock_movements WHERE from_location_id = 1;
+
+-- Movements TO this location (inbound)
+SELECT * FROM stock_movements WHERE to_location_id = 1;
+
+-- All movements (in or out)
+SELECT * FROM stock_movements 
+WHERE from_location_id = 1 OR to_location_id = 1
+ORDER BY posted_at DESC;
+```
+
+## Common Queries
+
+### Get Stock Summary by Location
+
+```sql
+SELECT 
+  il.id,
+  il.name,
+  il.type,
+  COUNT(DISTINCT s.item_variant_id) AS total_variants,
+  SUM(s.on_hand * s.weighted_avg_cost) AS total_value,
+  COUNT(DISTINCT s.id) FILTER (WHERE s.on_hand <= iv.min_stock) AS low_stock_count
+FROM inventory_locations il
+LEFT JOIN stock s ON s.inventory_location_id = il.id
+LEFT JOIN item_variants iv ON iv.id = s.item_variant_id
+WHERE il.operating_unit_id = 1
+GROUP BY il.id, il.name, il.type
+ORDER BY il.priority DESC, il.name;
+```
+
+### Find Primary Location for Operating Unit
+
+```sql
+SELECT * FROM inventory_locations
+WHERE operating_unit_id = 1 AND is_primary = true
+LIMIT 1;
+```
+
+### Get Active Locations by Type
+
+```sql
+SELECT * FROM inventory_locations
+WHERE operating_unit_id = 1 
+  AND type = 'KITCHEN'
+  AND is_active = true
+ORDER BY priority DESC, name;
+```
+
+## Validation Rules
+
+### Location Creation
+
+<Tabs>
+  <Tab title="Required Fields">
+    - `operating_unit_id` (must exist)
+    - `name` (max 255)
+    - `type` (valid enum)
+  </Tab>
+  <Tab title="Optional Fields">
+    - `is_primary` (default: false)
+    - `is_active` (default: true)
+    - `priority` (default: 0, min: 0)
+    - `notes`, `meta`
+  </Tab>
+  <Tab title="Uniqueness">
+    - `(operating_unit_id, name)` must be unique
+  </Tab>
+</Tabs>
+
+### Business Validations
+
+- Cannot set `is_primary=true` if operating unit already has a primary location
+- Cannot delete location with on_hand > 0 or reserved > 0
+- Cannot change `type` or `operating_unit_id` after creation
+- Cannot deactivate location with active stock movements
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Descriptive Names">
+    Name locations clearly: "Kitchen - Sushi Bar" instead of "K1"
+  </Accordion>
+  <Accordion title="Set Meaningful Priorities">
+    Use priority to control allocation order: MAIN (100) > KITCHEN (50) > WASTE (0)
+  </Accordion>
+  <Accordion title="Track Waste Separately">
+    Always create a WASTE location to measure loss and spoilage
+  </Accordion>
+  <Accordion title="Use RETURN for QC">
+    Create a RETURN location for items that need inspection before re-stocking
+  </Accordion>
+  <Accordion title="Consolidate Before Counts">
+    Transfer unused stock back to MAIN before physical counts for accuracy
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Stock Movements" icon="truck-fast" href="/inventory/stock-movements">
+    Record transfers and consumption between locations
+  </Card>
+  <Card title="Items & Variants" icon="box" href="/inventory/items-and-variants">
+    Define items to track in these locations
+  </Card>
+</CardGroup>

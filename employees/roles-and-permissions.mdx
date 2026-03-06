@@ -1,0 +1,545 @@
+---
+title: 'Roles and Permissions'
+description: 'Understanding and managing employee roles in SushiGo'
+---
+
+## Overview
+
+SushiGo uses a role-based access control (RBAC) system powered by **Spatie Laravel Permission**. Roles define what employees can do in the system, from operational tasks to administrative functions.
+
+<Info>
+Roles are assigned to the **User** entity (authentication identity), not directly to the Employee profile. The employee record links to the user via `user_id`.
+</Info>
+
+## Role Architecture
+
+### Position Roles vs Other Roles
+
+SushiGo distinguishes between:
+
+- **Position roles**: Job titles that define operational responsibilities (e.g., cook, manager)
+- **Other roles**: Non-position permissions (e.g., inventory-manager)
+
+<Note>
+Employee management focuses on **position roles**. The system preserves non-position roles when updating employee roles.
+</Note>
+
+## Available Position Roles
+
+### Operational Roles
+
+<CardGroup cols={2}>
+  <Card title="Manager" icon="user-tie">
+    **Code**: `manager`
+    
+    Branch manager with operational oversight:
+    - Record daily attendance
+    - Authorize overtime
+    - Manage schedules
+    - View reports for their branch
+  </Card>
+  
+  <Card title="Cook" icon="utensils">
+    **Code**: `cook`
+    
+    Kitchen staff responsible for food preparation:
+    - View their own schedule
+    - Check-in/check-out (when implemented)
+    - View their attendance history
+  </Card>
+  
+  <Card title="Kitchen Assistant" icon="hand-holding">
+    **Code**: `kitchen-assistant`
+    
+    Support staff in the kitchen:
+    - View their own schedule
+    - Check-in/check-out (when implemented)
+    - View their attendance history
+  </Card>
+  
+  <Card title="Delivery Driver" icon="truck">
+    **Code**: `delivery-driver`
+    
+    Responsible for order deliveries:
+    - View their own schedule
+    - Check-in/check-out (when implemented)
+    - View their attendance history
+  </Card>
+  
+  <Card title="Acting Manager" icon="user-shield">
+    **Code**: `acting-manager`
+    
+    Temporary manager designation:
+    - Same permissions as manager
+    - Used for temporary promotions
+    - Can be combined with other roles
+  </Card>
+</CardGroup>
+
+### Administrative Roles
+
+<CardGroup cols={2}>
+  <Card title="Admin" icon="shield">
+    **Code**: `admin`
+    
+    System administrator with elevated permissions:
+    - Edit historical records
+    - Manage catalogs
+    - Override system restrictions
+    - Access all branches
+    - Cannot assign super-admin role
+  </Card>
+  
+  <Card title="Super Admin" icon="shield-halved">
+    **Code**: `super-admin`
+    
+    Full system access:
+    - All admin permissions
+    - Manage users and permissions
+    - Assign any role including super-admin
+    - System configuration
+    - **Privileged**: Only assignable by other super-admins
+  </Card>
+</CardGroup>
+
+## Role Assignment Rules
+
+### Creating Employees
+
+When creating an employee:
+
+<Check>
+- At least **one role** is required
+- Multiple roles can be assigned simultaneously
+- Non-super-admins **cannot assign** `super-admin` role
+- Roles are validated against the actor's assignable roles list
+</Check>
+
+### Updating Employee Roles
+
+When updating an employee's roles:
+
+<Steps>
+  <Step title="System determines assignable roles">
+    Based on the acting user's role:
+    - **Super-admin**: Can manage all roles
+    - **Others**: Can manage all roles except `super-admin`
+  </Step>
+  
+  <Step title="System filters incoming roles">
+    Only roles the actor can assign are processed. Invalid roles are ignored.
+  </Step>
+  
+  <Step title="System preserves non-manageable roles">
+    Roles outside the actor's scope are preserved:
+    - Non-position roles (e.g., `inventory-manager`)
+    - Privileged roles the actor cannot assign
+  </Step>
+  
+  <Step title="System syncs final role list">
+    Combined list of new roles + preserved roles is synced to the user account.
+  </Step>
+</Steps>
+
+<Warning>
+This protection prevents a non-super-admin from accidentally removing the `super-admin` role when editing an employee who has it.
+</Warning>
+
+## Assignable Roles by Actor
+
+| Actor Role | Can Assign | Cannot Assign |
+|------------|------------|---------------|
+| Super Admin | All roles | None |
+| Admin | All except `super-admin` | `super-admin` |
+| Manager | All except `super-admin` | `super-admin` |
+| Other roles | All except `super-admin` | `super-admin` |
+
+### Code Reference
+
+The assignable roles logic is defined in `Employee.php:60`:
+
+```php
+public static function getAssignableRolesFor(?User $user = null): array
+{
+    // null = unrestricted (seeders, CLI)
+    if ($user === null || $user->hasRole(self::ROLE_SUPER_ADMIN)) {
+        return self::POSITION_ROLES; // All roles
+    }
+
+    // Everyone else: all roles except super-admin
+    return array_values(
+        array_diff(self::POSITION_ROLES, self::PRIVILEGED_ROLES)
+    );
+}
+```
+
+## Assigning Roles to Employees
+
+### During Employee Creation
+
+Roles are provided in the `roles` array:
+
+<CodeGroup>
+```bash Single Role
+curl -X POST "/api/v1/employees" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "EMP-020",
+    "first_name": "Pedro",
+    "last_name": "Sánchez",
+    "email": "pedro.sanchez@sushigo.com",
+    "roles": ["cook"],
+    "branch_id": 1,
+    "start_date": "2026-03-06"
+  }'
+```
+
+```bash Multiple Roles
+curl -X POST "/api/v1/employees" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "EMP-021",
+    "first_name": "Laura",
+    "last_name": "Martínez",
+    "email": "laura.martinez@sushigo.com",
+    "roles": ["manager", "admin"],
+    "branch_id": 2,
+    "start_date": "2026-03-06"
+  }'
+```
+</CodeGroup>
+
+### Updating Employee Roles
+
+To change an employee's roles, send a PATCH/PUT request:
+
+<CodeGroup>
+```bash Update Roles
+curl -X PUT "/api/v1/employees/{id}" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "roles": ["cook", "delivery-driver"]
+  }'
+```
+
+```json Response (200 OK)
+{
+  "status": 200,
+  "data": {
+    "id": "01JCEQZ8A2KXNM3P4R5S6T7U8V",
+    "code": "EMP-020",
+    "first_name": "Pedro",
+    "last_name": "Sánchez",
+    "user": {
+      "id": "01JCEQZ8A2WXYZ1A2B3C4D5E6F",
+      "roles": ["cook", "delivery-driver"]
+    }
+  }
+}
+```
+</CodeGroup>
+
+<Note>
+You can update roles independently without sending other employee fields. The system performs a **partial update**.
+</Note>
+
+## Role Synchronization Logic
+
+### How syncPositionRoles Works
+
+The `syncPositionRoles()` method in `Employee.php:131` implements safe role management:
+
+```php
+public function syncPositionRoles(array $roleNames, ?User $actingUser = null): void
+{
+    if (!$this->user) {
+        return; // No user linked, nothing to sync
+    }
+
+    // Determine which roles the acting user can manage
+    $manageableRoles = self::getAssignableRolesFor($actingUser);
+
+    // Filter incoming roles to valid + manageable only
+    $newPositionRoles = array_intersect($roleNames, $manageableRoles);
+
+    // Get current roles from user
+    $currentRoles = $this->user->getRoleNames()->toArray();
+
+    // Preserve roles that are NOT manageable by this actor
+    // (includes non-position roles + privileged roles)
+    $preserved = array_diff($currentRoles, $manageableRoles);
+
+    // Sync: preserved roles + new position roles
+    $this->user->syncRoles(
+        array_unique(array_merge($preserved, $newPositionRoles))
+    );
+}
+```
+
+### Example Scenarios
+
+<Tabs>
+  <Tab title="Scenario 1: Admin Updates Cook">
+    **Initial state**: Employee has role `cook`
+    
+    **Admin sends**: `["manager", "admin"]`
+    
+    **Result**: Employee has roles `["manager", "admin"]`
+    
+    <Check>Clean replacement - admin can manage both roles</Check>
+  </Tab>
+  
+  <Tab title="Scenario 2: Admin Updates Super-Admin">
+    **Initial state**: Employee has roles `["manager", "super-admin"]`
+    
+    **Admin sends**: `["cook"]`
+    
+    **Result**: Employee has roles `["cook", "super-admin"]`
+    
+    <Info>
+    Super-admin role preserved because admin cannot manage it
+    </Info>
+  </Tab>
+  
+  <Tab title="Scenario 3: Preserving Non-Position Roles">
+    **Initial state**: Employee has roles `["cook", "inventory-manager"]`
+    
+    **Admin sends**: `["manager"]`
+    
+    **Result**: Employee has roles `["manager", "inventory-manager"]`
+    
+    <Info>
+    Non-position role `inventory-manager` preserved automatically
+    </Info>
+  </Tab>
+  
+  <Tab title="Scenario 4: Super-Admin Full Control">
+    **Initial state**: Employee has roles `["manager", "super-admin"]`
+    
+    **Super-admin sends**: `["cook"]`
+    
+    **Result**: Employee has roles `["cook"]`
+    
+    <Check>Super-admin can remove any role, including super-admin</Check>
+  </Tab>
+</Tabs>
+
+## Reading Employee Roles
+
+### Get Position Roles Only
+
+To retrieve only position roles for an employee:
+
+```php
+$positionRoles = $employee->getPositionRoles();
+// Returns: ['cook', 'manager']
+```
+
+The method filters the user's roles to include only those in `Employee::POSITION_ROLES`:
+
+```php
+public function getPositionRoles(): array
+{
+    if (!$this->user) {
+        return [];
+    }
+
+    return $this->user
+        ->getRoleNames()
+        ->filter(fn($r) => in_array($r, self::POSITION_ROLES))
+        ->values()
+        ->toArray();
+}
+```
+
+### API Response Format
+
+Employee responses include roles in the `user` object:
+
+```json
+{
+  "id": "01JCEQZ8A2KXNM3P4R5S6T7U8V",
+  "code": "EMP-020",
+  "first_name": "Pedro",
+  "last_name": "Sánchez",
+  "user": {
+    "id": "01JCEQZ8A2WXYZ1A2B3C4D5E6F",
+    "name": "Pedro Sánchez",
+    "email": "pedro.sanchez@sushigo.com",
+    "roles": ["cook", "manager"]
+  }
+}
+```
+
+## Role Constants Reference
+
+All role constants are defined in `Employee.php:20-46`:
+
+```php
+// Position roles
+const ROLE_MANAGER = 'manager';
+const ROLE_COOK = 'cook';
+const ROLE_KITCHEN_ASSISTANT = 'kitchen-assistant';
+const ROLE_DELIVERY_DRIVER = 'delivery-driver';
+const ROLE_ACTING_MANAGER = 'acting-manager';
+const ROLE_ADMIN = 'admin';
+const ROLE_SUPER_ADMIN = 'super-admin';
+
+// All assignable position roles
+const POSITION_ROLES = [
+    self::ROLE_MANAGER,
+    self::ROLE_COOK,
+    self::ROLE_KITCHEN_ASSISTANT,
+    self::ROLE_DELIVERY_DRIVER,
+    self::ROLE_ACTING_MANAGER,
+    self::ROLE_ADMIN,
+    self::ROLE_SUPER_ADMIN,
+];
+
+// Roles requiring super-admin to assign
+const PRIVILEGED_ROLES = [
+    self::ROLE_SUPER_ADMIN,
+];
+```
+
+## Common Validation Errors
+
+<Accordion title="422 - No Roles Provided">
+```json
+{
+  "message": "At least one position role is required.",
+  "errors": {
+    "roles": [
+      "At least one position role is required."
+    ]
+  }
+}
+```
+
+**Cause**: Roles array is empty or not provided
+
+**Solution**: Include at least one valid role in the `roles` array
+</Accordion>
+
+<Accordion title="422 - Invalid Role">
+```json
+{
+  "message": "The selected roles.0 is invalid.",
+  "errors": {
+    "roles.0": [
+      "The selected roles.0 is invalid."
+    ]
+  }
+}
+```
+
+**Cause**: Role not in the assignable roles list for the acting user
+
+**Solution**: Use only valid position role codes that you have permission to assign
+</Accordion>
+
+<Accordion title="403 - Cannot Assign Super-Admin">
+```json
+{
+  "message": "The selected roles.0 is invalid.",
+  "errors": {
+    "roles.0": [
+      "The selected roles.0 is invalid."
+    ]
+  }
+}
+```
+
+**Cause**: Non-super-admin attempted to assign `super-admin` role
+
+**Solution**: Only super-admins can assign the super-admin role
+</Accordion>
+
+## Permission Checking
+
+### In Code
+
+Use Spatie Permission helpers to check roles:
+
+```php
+// Check if user has specific role
+if ($user->hasRole('manager')) {
+    // Manager-specific logic
+}
+
+// Check if user has any of multiple roles
+if ($user->hasAnyRole(['manager', 'admin'])) {
+    // Logic for managers or admins
+}
+
+// Check if user has all specified roles
+if ($user->hasAllRoles(['manager', 'admin'])) {
+    // Logic requiring both roles
+}
+```
+
+### In Policies
+
+```php
+public function viewAny(User $user): bool
+{
+    return $user->hasAnyRole(['manager', 'admin', 'super-admin']);
+}
+
+public function update(User $user, Employee $employee): bool
+{
+    return $user->hasRole(['admin', 'super-admin']);
+}
+```
+
+### In Blade/Frontend
+
+```php
+@role('manager')
+    <!-- Manager-only content -->
+@endrole
+
+@hasanyrole('manager|admin')
+    <!-- Manager or admin content -->
+@endhasanyrole
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Principle of Least Privilege" icon="lock">
+    Assign only the roles necessary for the employee's job function
+  </Card>
+  
+  <Card title="Regular Audits" icon="magnifying-glass">
+    Periodically review role assignments to ensure they remain appropriate
+  </Card>
+  
+  <Card title="Document Changes" icon="file-pen">
+    Use the `meta` field or audit logs to track why roles were changed
+  </Card>
+  
+  <Card title="Test Permissions" icon="vial">
+    Verify role changes in a test environment before applying to production
+  </Card>
+</CardGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Creating Employees" icon="user-plus" href="/employees/creating-employees">
+    Learn how to create employees with initial roles
+  </Card>
+  <Card title="Employee Overview" icon="users" href="/employees/overview">
+    Understand the employee management system
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/employees/update">
+    Complete API documentation for updating employees
+  </Card>
+  <Card title="Spatie Permission Docs" icon="book" href="https://spatie.be/docs/laravel-permission">
+    Official Spatie Permission documentation
+  </Card>
+</CardGroup>

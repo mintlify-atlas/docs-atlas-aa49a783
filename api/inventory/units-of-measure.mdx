@@ -1,0 +1,586 @@
+---
+title: Units of Measure
+description: Manage units of measure and conversions for inventory tracking
+---
+
+Units of Measure (UOM) define how quantities are measured (kg, liters, pieces, etc.). UOM conversions allow the system to convert between units automatically.
+
+## List Units of Measure
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/units-of-measure?is_active=true" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/units-of-measure', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Query Parameters
+
+<ParamField query="is_active" type="boolean">
+  Filter by active status
+</ParamField>
+
+<ParamField query="is_decimal" type="boolean">
+  Filter by decimal support (true = allows decimals, false = integer only)
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="array">
+  <Expandable title="Unit of Measure Object">
+    <ResponseField name="id" type="integer">UOM ID</ResponseField>
+    <ResponseField name="code" type="string">Unique code (e.g., KG, L, PZA)</ResponseField>
+    <ResponseField name="name" type="string">Full name (e.g., Kilogramo)</ResponseField>
+    <ResponseField name="symbol" type="string">Display symbol (e.g., kg, L, pz)</ResponseField>
+    <ResponseField name="precision" type="integer">Decimal places for quantities (0-6)</ResponseField>
+    <ResponseField name="is_decimal" type="boolean">Allows decimal quantities</ResponseField>
+    <ResponseField name="is_active" type="boolean">Active status</ResponseField>
+    <ResponseField name="created_at" type="string">Created timestamp</ResponseField>
+    <ResponseField name="updated_at" type="string">Updated timestamp</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 200,
+  "data": [
+    {
+      "id": 3,
+      "code": "KG",
+      "name": "Kilogramo",
+      "symbol": "kg",
+      "precision": 3,
+      "is_decimal": true,
+      "is_active": true,
+      "created_at": "2026-01-10T08:00:00+00:00",
+      "updated_at": "2026-01-10T08:00:00+00:00"
+    },
+    {
+      "id": 5,
+      "code": "PZA",
+      "name": "Pieza",
+      "symbol": "pz",
+      "precision": 0,
+      "is_decimal": false,
+      "is_active": true,
+      "created_at": "2026-01-10T08:00:00+00:00",
+      "updated_at": "2026-01-10T08:00:00+00:00"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 15,
+    "total": 12
+  }
+}
+```
+
+---
+
+## Create Unit of Measure
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.sushigo.com/api/v1/units-of-measure" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "BOT",
+    "name": "Botella",
+    "symbol": "bot",
+    "precision": 0,
+    "is_decimal": false,
+    "is_active": true
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/units-of-measure', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    code: 'BOT',
+    name: 'Botella',
+    symbol: 'bot',
+    precision: 0,
+    is_decimal: false
+  })
+});
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="code" type="string" required>
+  Unique UOM code (max 20 chars, e.g., KG, L, PZA)
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Full name (max 100 chars, e.g., Kilogramo, Litro)
+</ParamField>
+
+<ParamField body="symbol" type="string" required>
+  Display symbol (max 10 chars, e.g., kg, L, pz)
+</ParamField>
+
+<ParamField body="precision" type="integer" default="2">
+  Decimal places (0-6). For integer-only units, use 0.
+</ParamField>
+
+<ParamField body="is_decimal" type="boolean" default="true">
+  Allow decimal quantities. Set to false for countable items (pieces, bottles, etc.)
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status
+</ParamField>
+
+### Response
+
+Returns the created UOM object with status `201`.
+
+### Errors
+
+- `422` - Validation error (duplicate code, invalid precision)
+- `403` - Insufficient permissions
+
+---
+
+## Get Unit of Measure
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/units-of-measure/3" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/units-of-measure/3', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Unit of measure ID
+</ParamField>
+
+### Response
+
+Returns the UOM object with all fields.
+
+### Errors
+
+- `404` - UOM not found
+
+---
+
+## Update Unit of Measure
+
+<CodeGroup>
+```bash cURL
+curl -X PUT "https://api.sushigo.com/api/v1/units-of-measure/3" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "precision": 4
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/units-of-measure/3', {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    precision: 4
+  })
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Unit of measure ID
+</ParamField>
+
+### Request Body
+
+All fields are optional. Only provided fields will be updated.
+
+<ParamField body="code" type="string">
+  UOM code (must be unique)
+</ParamField>
+
+<ParamField body="name" type="string">
+  Full name
+</ParamField>
+
+<ParamField body="symbol" type="string">
+  Display symbol
+</ParamField>
+
+<ParamField body="precision" type="integer">
+  Decimal places (0-6)
+</ParamField>
+
+<ParamField body="is_decimal" type="boolean">
+  Allow decimals
+</ParamField>
+
+<ParamField body="is_active" type="boolean">
+  Active status
+</ParamField>
+
+### Response
+
+Returns the updated UOM object with status `200`.
+
+### Errors
+
+- `404` - UOM not found
+- `422` - Validation error
+- `403` - Insufficient permissions
+
+---
+
+## Delete Unit of Measure
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.sushigo.com/api/v1/units-of-measure/15" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/units-of-measure/15', {
+  method: 'DELETE',
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Unit of measure ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "status": 200,
+  "message": "Unit of measure deleted successfully"
+}
+```
+
+### Errors
+
+- `404` - UOM not found
+- `409` - Cannot delete - UOM is in use by item variants
+- `403` - Insufficient permissions
+
+<Warning>
+UOMs in use by item variants cannot be deleted. The system will also soft-delete all related UOM conversions when a UOM is deleted.
+</Warning>
+
+---
+
+## List UOM Conversions
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/uom-conversions?from_uom_id=3" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/uom-conversions?from_uom_id=3', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Query Parameters
+
+<ParamField query="from_uom_id" type="integer">
+  Filter by source UOM ID
+</ParamField>
+
+<ParamField query="to_uom_id" type="integer">
+  Filter by target UOM ID
+</ParamField>
+
+<ParamField query="is_active" type="boolean">
+  Filter by active status
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="array">
+  <Expandable title="UOM Conversion Object">
+    <ResponseField name="id" type="integer">Conversion ID</ResponseField>
+    <ResponseField name="from_uom_id" type="integer">Source UOM ID</ResponseField>
+    <ResponseField name="to_uom_id" type="integer">Target UOM ID</ResponseField>
+    <ResponseField name="factor" type="number">Conversion factor (1 from_uom = factor × to_uom)</ResponseField>
+    <ResponseField name="tolerance" type="number">Acceptable variance (0-1, e.g., 0.02 = 2%)</ResponseField>
+    <ResponseField name="is_active" type="boolean">Active status</ResponseField>
+    <ResponseField name="from_uom" type="object">Source UOM details (id, code, name, symbol)</ResponseField>
+    <ResponseField name="to_uom" type="object">Target UOM details (id, code, name, symbol)</ResponseField>
+    <ResponseField name="created_at" type="string">Created timestamp</ResponseField>
+    <ResponseField name="updated_at" type="string">Updated timestamp</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 200,
+  "data": [
+    {
+      "id": 1,
+      "from_uom_id": 3,
+      "to_uom_id": 2,
+      "factor": 1000.0,
+      "tolerance": 0.01,
+      "is_active": true,
+      "from_uom": {
+        "id": 3,
+        "code": "KG",
+        "name": "Kilogramo",
+        "symbol": "kg"
+      },
+      "to_uom": {
+        "id": 2,
+        "code": "GR",
+        "name": "Gramo",
+        "symbol": "g"
+      },
+      "created_at": "2026-01-10T08:00:00+00:00",
+      "updated_at": "2026-01-10T08:00:00+00:00"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 15,
+    "total": 8
+  }
+}
+```
+
+<Note>
+**Reading Conversion Factors:**
+A factor of 1000 from KG to GR means: **1 KG = 1000 GR**
+
+To convert the other direction, use the reciprocal: **1 GR = 0.001 KG**
+</Note>
+
+---
+
+## Create UOM Conversion
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.sushigo.com/api/v1/uom-conversions" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from_uom_id": 3,
+    "to_uom_id": 2,
+    "factor": 1000,
+    "tolerance": 0.01,
+    "is_active": true
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/uom-conversions', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    from_uom_id: 3,
+    to_uom_id: 2,
+    factor: 1000
+  })
+});
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="from_uom_id" type="integer" required>
+  Source UOM ID (must exist)
+</ParamField>
+
+<ParamField body="to_uom_id" type="integer" required>
+  Target UOM ID (must exist, must differ from source)
+</ParamField>
+
+<ParamField body="factor" type="number" required>
+  Conversion factor (must be > 0). Formula: `to_qty = from_qty × factor`
+</ParamField>
+
+<ParamField body="tolerance" type="number" default="0">
+  Acceptable variance (0-1). For example, 0.02 means ±2% variance is acceptable in conversions.
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status
+</ParamField>
+
+### Response
+
+Returns the created conversion with source and target UOM details. Status `201`.
+
+### Errors
+
+- `422` - Validation error (invalid UOM IDs, negative factor, same from/to UOM)
+- `403` - Insufficient permissions
+
+<Tip>
+**Common Conversions:**
+- KG → GR: factor = 1000 (1 kg = 1000 g)
+- L → ML: factor = 1000 (1 L = 1000 ml)
+- M → CM: factor = 100 (1 m = 100 cm)
+- CAJA → PZA: factor = 12 (if 1 box = 12 pieces)
+</Tip>
+
+---
+
+## Delete UOM Conversion
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.sushigo.com/api/v1/uom-conversions/1" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/uom-conversions/1', {
+  method: 'DELETE',
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  UOM conversion ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "status": 200,
+  "message": "UOM conversion deleted successfully"
+}
+```
+
+### Errors
+
+- `404` - Conversion not found
+- `403` - Insufficient permissions
+
+---
+
+## Understanding UOM Conversions
+
+### Conversion Direction
+
+Conversions are **directional**. A conversion from KG to GR (factor 1000) allows:
+- Converting KG → GR (multiply by 1000)
+- Converting GR → KG (divide by 1000, reciprocal)
+
+The system automatically handles reciprocal conversions. You don't need to create both directions.
+
+### Conversion Chains
+
+The system can chain conversions:
+- If you have KG → GR and GR → MG
+- The system can convert KG → MG by multiplying factors: 1000 × 1000 = 1,000,000
+
+### Precision and Rounding
+
+- The system respects the `precision` field of the target UOM
+- For example, if converting to a UOM with precision=2, the result is rounded to 2 decimal places
+- Use `tolerance` to define acceptable rounding variance
+
+### Use in Stock Movements
+
+When registering stock movements, you can enter quantities in any UOM that has a conversion path to the variant's base UOM:
+
+1. Variant base UOM: **KG**
+2. You enter: **500 GR**
+3. Conversion: **KG → GR (factor 1000)**
+4. System converts: **500 ÷ 1000 = 0.5 KG**
+5. Stock updated: **+0.5 KG**
+
+<Warning>
+**Missing Conversions:**
+If you try to register a movement with a UOM that has no conversion path to the variant's base UOM, the operation will fail with a 400 error: "No conversion found between [entry UOM] and [base UOM]".
+
+Always define conversions before using alternate UOMs in stock operations.
+</Warning>
+
+---
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Standard UOM Codes">
+    Use standardized codes for consistency:
+    - Weight: `KG`, `GR`, `MG`, `TON`, `LB`, `OZ`
+    - Volume: `L`, `ML`, `GAL`, `PT`, `QT`
+    - Length: `M`, `CM`, `MM`, `KM`, `IN`, `FT`
+    - Count: `PZA`, `CAJA`, `PAQ`, `DOC`
+  </Accordion>
+  
+  <Accordion title="Precision Guidelines">
+    - Weight/Volume ingredients: precision = 3 (0.001 kg = 1 gram)
+    - Count items (bottles, pieces): precision = 0 (integer only)
+    - Currency/prices: precision = 2 (cents)
+  </Accordion>
+  
+  <Accordion title="Conversion Setup">
+    Define conversions from smaller to larger units:
+    - GR → KG (factor 0.001) instead of KG → GR
+    - ML → L (factor 0.001) instead of L → ML
+    
+    This makes factors more intuitive when reading the database.
+  </Accordion>
+  
+  <Accordion title="Testing Conversions">
+    After creating conversions, test them by registering a small opening balance with alternate UOMs. Verify the converted quantity matches expectations.
+  </Accordion>
+</AccordionGroup>

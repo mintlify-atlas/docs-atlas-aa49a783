@@ -1,0 +1,455 @@
+---
+title: 'Creating Employees'
+description: 'Step-by-step guide to employee onboarding and registration'
+---
+
+## Overview
+
+Creating an employee in SushiGo involves registering their profile information, assigning roles, and establishing their initial employment period. The system automatically creates a linked user account and sends welcome notifications.
+
+## Prerequisites
+
+<Check>
+- You must have `manager` or `admin` role to create employees
+- Branch must exist where employee will work
+- Employee code must be unique (system can suggest next available code)
+</Check>
+
+## Employee Code System
+
+### Code Structure
+
+Employee codes follow a configurable pattern:
+
+```
+[PREFIX][NUMBER]
+
+Examples:
+EMP-001
+EMP-002
+EMP-015
+```
+
+### Configuration
+
+Located in `config/employees.php`:
+
+```php
+'code_prefix' => env('EMPLOYEE_CODE_PREFIX', 'EMP-'),
+'code_padding' => env('EMPLOYEE_CODE_PADDING', 3),
+```
+
+### Getting Next Available Code
+
+The system provides an endpoint to suggest the next available code:
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.local/api/v1/employees/next-code" \
+  -H "Authorization: Bearer {token}"
+```
+
+```json Response
+{
+  "code": "EMP-006",
+  "prefix": "EMP-"
+}
+```
+</CodeGroup>
+
+### Code Validation Rules
+
+<CardGroup cols={2}>
+  <Card title="Uniqueness" icon="fingerprint">
+    Code must be unique across all employees, including soft-deleted records
+  </Card>
+  <Card title="Max Length" icon="ruler">
+    Maximum 20 characters
+  </Card>
+  <Card title="Case Handling" icon="arrow-up">
+    Automatically converted to uppercase
+  </Card>
+  <Card title="Format" icon="check">
+    No specific format required beyond uniqueness
+  </Card>
+</CardGroup>
+
+## Required Fields
+
+### Basic Information
+
+| Field | Type | Validation | Example |
+|-------|------|------------|---------|
+| `code` | string | Required, unique, max 20 chars | `EMP-001` |
+| `first_name` | string | Required, max 100 chars | `Juan` |
+| `last_name` | string | Required, max 100 chars | `Pérez` |
+| `roles` | array | Required, min 1 role | `["cook"]` |
+
+### Contact Information
+
+<Warning>
+At least **one** contact method (email or phone) is required. Both can be provided.
+</Warning>
+
+| Field | Type | Validation | Example | Notes |
+|-------|------|------------|---------|-------|
+| `email` | string | Email format, unique, max 255 | `juan.perez@sushigo.com` | Required if phone not provided |
+| `phone` | string | 10 digits, unique | `5512345678` | Required if email not provided |
+
+#### Phone Number Handling
+
+- **Input format**: 10-digit national number (no country code, no spaces/dashes)
+- **System processing**: Non-digit characters stripped automatically
+- **Country code**: Automatically added (+52 for Mexico) via `config/employees.default_phone_country`
+- **Storage**: Stored as digits only in `users.phone`, country in `users.phone_country`
+
+<Accordion title="Example: Phone Number Processing">
+```json User Input (all valid)
+{
+  "phone": "5512345678"      // ✓ Clean format
+  "phone": "551-234-5678"    // ✓ System strips dashes
+  "phone": "551 234 5678"    // ✓ System strips spaces
+}
+```
+
+```json Stored in Database
+{
+  "phone": "5512345678",
+  "phone_country": "+52"
+}
+```
+</Accordion>
+
+### Employment Information
+
+| Field | Type | Validation | Example | Notes |
+|-------|------|------------|---------|-------|
+| `branch_id` | integer | Required, must exist | `1` | Initial branch assignment |
+| `start_date` | string | Required, ISO 8601 date | `2026-01-15` | Employment start date |
+
+### Optional Fields
+
+| Field | Type | Validation | Example |
+|-------|------|------------|---------|
+| `meta` | object | Optional JSON object | `{"notes": "..."}` |
+
+## Role Assignment
+
+### Available Roles
+
+<Tabs>
+  <Tab title="Operational Roles">
+    - **manager**: Branch manager with oversight responsibilities
+    - **cook**: Kitchen staff for food preparation
+    - **kitchen-assistant**: Kitchen support staff
+    - **delivery-driver**: Order delivery personnel
+    - **acting-manager**: Temporary manager designation
+  </Tab>
+  <Tab title="Administrative Roles">
+    - **admin**: System administrator (catalog management, historical edits)
+    - **super-admin**: Full system access (requires super-admin to assign)
+  </Tab>
+</Tabs>
+
+### Role Assignment Rules
+
+1. **Minimum requirement**: At least one role must be assigned
+2. **Multiple roles**: Employees can have multiple roles
+3. **Privilege restriction**: Non-super-admins cannot assign `super-admin` role
+4. **Format**: Roles provided as array of strings
+
+<CodeGroup>
+```json Single Role
+{
+  "roles": ["cook"]
+}
+```
+
+```json Multiple Roles
+{
+  "roles": ["cook", "delivery-driver"]
+}
+```
+
+```json Manager + Admin
+{
+  "roles": ["manager", "admin"]
+}
+```
+</CodeGroup>
+
+## Creating an Employee
+
+### API Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.sushigo.local/api/v1/employees" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "EMP-005",
+    "first_name": "Juan",
+    "last_name": "Pérez",
+    "email": "juan.perez@sushigo.com",
+    "phone": "5512345678",
+    "roles": ["cook"],
+    "branch_id": 1,
+    "start_date": "2026-03-06"
+  }'
+```
+
+```json Response (201 Created)
+{
+  "status": 201,
+  "data": {
+    "id": "01JCEQZ8A2KXNM3P4R5S6T7U8V",
+    "code": "EMP-005",
+    "first_name": "Juan",
+    "last_name": "Pérez",
+    "is_active": true,
+    "user": {
+      "id": "01JCEQZ8A2WXYZ1A2B3C4D5E6F",
+      "name": "Juan Pérez",
+      "email": "juan.perez@sushigo.com",
+      "phone": "5512345678",
+      "phone_country": "+52",
+      "roles": ["cook"]
+    },
+    "employment_periods": [
+      {
+        "id": "01JCEQZ8A3ABCD7H8J9K0L1M2N",
+        "branch_id": 1,
+        "start_date": "2026-03-06",
+        "end_date": null,
+        "is_active": true,
+        "branch": {
+          "id": "01JCEQZ8A3PQRST3U4V5W6X7Y8",
+          "name": "Sucursal Centro",
+          "code": "CENTRO"
+        }
+      }
+    ]
+  }
+}
+```
+</CodeGroup>
+
+### Validation Errors
+
+<CodeGroup>
+```json 422 - Code Already Exists
+{
+  "message": "The code has already been taken.",
+  "errors": {
+    "code": [
+      "The code has already been taken."
+    ]
+  }
+}
+```
+
+```json 422 - Missing Contact Method
+{
+  "message": "Email is required when phone is not provided.",
+  "errors": {
+    "email": [
+      "Email is required when phone is not provided."
+    ]
+  }
+}
+```
+
+```json 422 - Invalid Phone Format
+{
+  "message": "Phone must be a 10-digit national number without country code.",
+  "errors": {
+    "phone": [
+      "Phone must be a 10-digit national number without country code."
+    ]
+  }
+}
+```
+
+```json 422 - No Roles Provided
+{
+  "message": "At least one position role is required.",
+  "errors": {
+    "roles": [
+      "At least one position role is required."
+    ]
+  }
+}
+```
+</CodeGroup>
+
+## What Happens Behind the Scenes
+
+When you create an employee, the system performs these operations in a database transaction:
+
+<Steps>
+  <Step title="Create User Account">
+    System creates a `User` record with:
+    - Full name (first_name + last_name)
+    - Email and/or phone
+    - Random password (32 characters)
+    - Phone country code (+52)
+  </Step>
+  
+  <Step title="Create Employee Profile">
+    System creates an `Employee` record with:
+    - Link to created user (`user_id`)
+    - Employee code (uppercase)
+    - First and last name
+    - Active status (`is_active = true`)
+    - Optional metadata
+  </Step>
+  
+  <Step title="Assign Roles">
+    System assigns roles to the User entity using Spatie Permission:
+    - Validates roles against assignable list
+    - Syncs roles to user account
+    - Preserves any non-position roles
+  </Step>
+  
+  <Step title="Create Employment Period">
+    System creates initial `EmploymentPeriod` record with:
+    - Link to employee
+    - Branch assignment
+    - Start date
+    - Active status (`is_active = true`)
+    - End date = NULL (currently employed)
+  </Step>
+  
+  <Step title="Send Welcome Notification">
+    System sends password setup link via:
+    - **Email** (if provided): Welcome email with link
+    - **WhatsApp** (if phone provided): Message with link
+    - Failures logged but don't block employee creation
+  </Step>
+</Steps>
+
+<Info>
+The entire operation is wrapped in a **database transaction**. If any step fails, all changes are rolled back automatically.
+</Info>
+
+## Password Setup Flow
+
+<Steps>
+  <Step title="Employee Receives Notification">
+    New employee receives welcome message via email or WhatsApp with password setup link
+  </Step>
+  
+  <Step title="Employee Opens Link">
+    Link directs to password creation form (valid for 24 hours)
+  </Step>
+  
+  <Step title="Employee Sets Password">
+    Employee creates their own secure password following system requirements
+  </Step>
+  
+  <Step title="Employee Logs In">
+    Employee can now log in to the system using their email/phone and chosen password
+  </Step>
+</Steps>
+
+## Common Scenarios
+
+### Scenario: Employee with Email Only
+
+```json Request
+{
+  "code": "EMP-010",
+  "first_name": "María",
+  "last_name": "González",
+  "email": "maria.gonzalez@sushigo.com",
+  "roles": ["kitchen-assistant"],
+  "branch_id": 2,
+  "start_date": "2026-03-10"
+}
+```
+
+<Check>
+Valid - Phone not required when email provided
+</Check>
+
+### Scenario: Employee with Phone Only
+
+```json Request
+{
+  "code": "EMP-011",
+  "first_name": "Carlos",
+  "last_name": "Ramírez",
+  "phone": "5587654321",
+  "roles": ["delivery-driver"],
+  "branch_id": 1,
+  "start_date": "2026-03-11"
+}
+```
+
+<Check>
+Valid - Email not required when phone provided. Welcome link sent via WhatsApp.
+</Check>
+
+### Scenario: Manager with Multiple Roles
+
+```json Request
+{
+  "code": "EMP-012",
+  "first_name": "Ana",
+  "last_name": "López",
+  "email": "ana.lopez@sushigo.com",
+  "phone": "5543218765",
+  "roles": ["manager", "admin"],
+  "branch_id": 3,
+  "start_date": "2026-03-01"
+}
+```
+
+<Check>
+Valid - Multiple roles assigned. Employee has both operational (manager) and administrative (admin) permissions.
+</Check>
+
+### Scenario: Future Start Date
+
+```json Request
+{
+  "code": "EMP-013",
+  "first_name": "Luis",
+  "last_name": "Hernández",
+  "email": "luis.hernandez@sushigo.com",
+  "roles": ["cook"],
+  "branch_id": 1,
+  "start_date": "2026-04-01"
+}
+```
+
+<Check>
+Valid - Employee can be registered before start date. They can log in and view their profile, but won't appear in operational attendance views until start date.
+</Check>
+
+## Next Steps
+
+After creating an employee, you'll typically:
+
+1. [Assign or update roles](/employees/roles-and-permissions) - Modify role assignments
+2. [Create wage history](/employees/wage-history) - Set initial wage
+3. [Create employee schedule](/employees/schedules) - Define working hours
+4. [Start tracking attendance](/employees/attendance-tracking) - Daily check-in/check-out
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Roles and Permissions" icon="shield" href="/employees/roles-and-permissions">
+    Learn about role management and permissions
+  </Card>
+  <Card title="Wage History" icon="dollar-sign" href="/employees/wage-history">
+    Set up employee wages and track changes
+  </Card>
+  <Card title="Employee Schedules" icon="calendar" href="/employees/schedules">
+    Define working hours and shifts
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/employees/create">
+    Complete API documentation for employee creation
+  </Card>
+</CardGroup>

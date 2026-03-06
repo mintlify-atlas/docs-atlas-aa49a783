@@ -1,0 +1,402 @@
+---
+title: Inventory Locations
+description: Manage inventory storage locations within operating units
+---
+
+Inventory locations represent physical or logical zones within an operating unit where stock is stored (e.g., main warehouse, kitchen, bar, temporary storage).
+
+## List Inventory Locations
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/inventory-locations?operating_unit_id=1" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/inventory-locations?operating_unit_id=1', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Query Parameters
+
+<ParamField query="operating_unit_id" type="integer">
+  Filter by operating unit (branch or temporary unit)
+</ParamField>
+
+<ParamField query="type" type="string">
+  Filter by location type: `MAIN`, `TEMP`, `KITCHEN`, `BAR`, or `RETURN`
+</ParamField>
+
+<ParamField query="is_active" type="boolean">
+  Filter by active status
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="array">
+  <Expandable title="Inventory Location Object">
+    <ResponseField name="id" type="integer">Location ID</ResponseField>
+    <ResponseField name="operating_unit_id" type="integer">Operating unit ID</ResponseField>
+    <ResponseField name="name" type="string">Location name</ResponseField>
+    <ResponseField name="type" type="string">Type: MAIN, TEMP, KITCHEN, BAR, RETURN</ResponseField>
+    <ResponseField name="priority" type="integer">Priority for stock picking (higher = picked first)</ResponseField>
+    <ResponseField name="is_primary" type="boolean">Primary location for the operating unit</ResponseField>
+    <ResponseField name="is_active" type="boolean">Active status</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Pagination metadata
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 200,
+  "data": [
+    {
+      "id": 1,
+      "operating_unit_id": 1,
+      "name": "Almacén Principal",
+      "type": "MAIN",
+      "priority": 100,
+      "is_primary": true,
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "operating_unit_id": 1,
+      "name": "Cocina",
+      "type": "KITCHEN",
+      "priority": 50,
+      "is_primary": false,
+      "is_active": true
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 15,
+    "total": 2
+  }
+}
+```
+
+---
+
+## Create Inventory Location
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.sushigo.com/api/v1/inventory-locations" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "operating_unit_id": 1,
+    "name": "Bodega Temporal",
+    "type": "TEMP",
+    "priority": 75,
+    "is_primary": false,
+    "is_active": true,
+    "notes": "Almacén para eventos especiales"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/inventory-locations', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    operating_unit_id: 1,
+    name: 'Bodega Temporal',
+    type: 'TEMP',
+    priority: 75
+  })
+});
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="operating_unit_id" type="integer" required>
+  Operating unit ID (must exist)
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Location name
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Location type: `MAIN`, `TEMP`, `KITCHEN`, `BAR`, or `RETURN`
+</ParamField>
+
+<ParamField body="priority" type="integer" default="100">
+  Priority for stock picking (1-999, higher picked first)
+</ParamField>
+
+<ParamField body="is_primary" type="boolean" default="false">
+  Primary location for the operating unit
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Additional notes about this location
+</ParamField>
+
+### Response
+
+Returns the created location with operating unit and branch details. Status `201`.
+
+```json
+{
+  "status": 201,
+  "data": {
+    "id": 3,
+    "operating_unit_id": 1,
+    "name": "Bodega Temporal",
+    "type": "TEMP",
+    "priority": 75,
+    "is_primary": false,
+    "is_active": true,
+    "notes": "Almacén para eventos especiales",
+    "operating_unit": {
+      "id": 1,
+      "name": "Sucursal Centro",
+      "type": "BRANCH",
+      "branch": {
+        "id": 1,
+        "code": "SUC-001",
+        "name": "Centro"
+      }
+    },
+    "created_at": "2026-03-06T14:30:00+00:00"
+  }
+}
+```
+
+### Errors
+
+- `422` - Validation error (invalid operating_unit_id, invalid type)
+- `403` - Insufficient permissions
+
+---
+
+## Get Inventory Location
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/inventory-locations/1" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/inventory-locations/1', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Inventory location ID
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="Location Details">
+    <ResponseField name="id" type="integer">Location ID</ResponseField>
+    <ResponseField name="operating_unit_id" type="integer">Operating unit ID</ResponseField>
+    <ResponseField name="name" type="string">Location name</ResponseField>
+    <ResponseField name="type" type="string">Location type</ResponseField>
+    <ResponseField name="priority" type="integer">Priority</ResponseField>
+    <ResponseField name="is_primary" type="boolean">Primary location</ResponseField>
+    <ResponseField name="is_active" type="boolean">Active status</ResponseField>
+    <ResponseField name="notes" type="string">Notes</ResponseField>
+    <ResponseField name="operating_unit" type="object">
+      Operating unit details (id, name, type, branch)
+    </ResponseField>
+    <ResponseField name="stock_summary" type="object">
+      <Expandable title="Stock Summary">
+        <ResponseField name="variant_count" type="integer">Number of distinct variants in this location</ResponseField>
+        <ResponseField name="total_on_hand" type="number">Total quantity on hand</ResponseField>
+        <ResponseField name="total_reserved" type="number">Total reserved quantity</ResponseField>
+        <ResponseField name="total_available" type="number">Total available quantity</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="created_at" type="string">Created timestamp</ResponseField>
+    <ResponseField name="updated_at" type="string">Updated timestamp</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 200,
+  "data": {
+    "id": 1,
+    "operating_unit_id": 1,
+    "name": "Almacén Principal",
+    "type": "MAIN",
+    "priority": 100,
+    "is_primary": true,
+    "is_active": true,
+    "notes": null,
+    "operating_unit": {
+      "id": 1,
+      "name": "Sucursal Centro",
+      "type": "BRANCH",
+      "branch": {
+        "id": 1,
+        "code": "SUC-001",
+        "name": "Centro"
+      }
+    },
+    "stock_summary": {
+      "variant_count": 42,
+      "total_on_hand": 3520.5,
+      "total_reserved": 125.0,
+      "total_available": 3395.5
+    },
+    "created_at": "2026-01-10T08:00:00+00:00",
+    "updated_at": "2026-01-10T08:00:00+00:00"
+  }
+}
+```
+
+### Errors
+
+- `404` - Location not found
+
+---
+
+## Update Inventory Location
+
+<CodeGroup>
+```bash cURL
+curl -X PUT "https://api.sushigo.com/api/v1/inventory-locations/1" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "priority": 120,
+    "notes": "Prioridad aumentada"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/inventory-locations/1', {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    priority: 120
+  })
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Inventory location ID
+</ParamField>
+
+### Request Body
+
+All fields are optional. `operating_unit_id` cannot be changed after creation.
+
+<ParamField body="name" type="string">
+  Location name
+</ParamField>
+
+<ParamField body="type" type="string">
+  Location type
+</ParamField>
+
+<ParamField body="priority" type="integer">
+  Priority (1-999)
+</ParamField>
+
+<ParamField body="is_primary" type="boolean">
+  Primary location
+</ParamField>
+
+<ParamField body="is_active" type="boolean">
+  Active status
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Notes
+</ParamField>
+
+### Response
+
+Returns the updated location object with status `200`.
+
+### Errors
+
+- `404` - Location not found
+- `422` - Validation error
+- `403` - Insufficient permissions
+
+---
+
+## Delete Inventory Location
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.sushigo.com/api/v1/inventory-locations/3" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/inventory-locations/3', {
+  method: 'DELETE',
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Inventory location ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "status": 200,
+  "data": {
+    "message": "Inventory location deleted successfully"
+  }
+}
+```
+
+### Errors
+
+- `404` - Location not found
+- `409` - Cannot delete - location has stock on hand. Move or consume stock first.
+- `403` - Insufficient permissions
+
+<Warning>
+Locations with stock on hand cannot be deleted. Transfer all stock to other locations or consume it before deletion.
+</Warning>

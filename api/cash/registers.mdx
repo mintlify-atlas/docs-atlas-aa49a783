@@ -1,0 +1,425 @@
+---
+title: "Cash Registers"
+description: "Manage cash registers for on-premise, delivery, and event operations"
+---
+
+## Overview
+
+Cash registers represent physical or virtual points of sale. Each register belongs to a branch and can be of three types: ON_PREMISE (dine-in), DELIVERY, or EVENT (temporary operations).
+
+---
+
+## Create Cash Register
+
+```http
+POST /api/v1/cash-registers
+```
+
+### Request Body
+
+<ParamField body="branch_id" type="integer" required>
+  Branch ID where the register is located
+</ParamField>
+
+<ParamField body="operating_unit_id" type="integer">
+  Operating unit ID (required for EVENT type registers)
+</ParamField>
+
+<ParamField body="code" type="string" required>
+  Unique register code (max 50 characters)
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Register name (max 255 characters)
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Register type: `ON_PREMISE`, `DELIVERY`, or `EVENT`
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata
+  
+  <Expandable title="properties">
+    <ResponseField name="location" type="string">
+      Physical location description
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="integer">
+      Register ID
+    </ResponseField>
+    
+    <ResponseField name="branch_id" type="integer">
+      Branch ID
+    </ResponseField>
+    
+    <ResponseField name="operating_unit_id" type="integer">
+      Operating unit ID (for events)
+    </ResponseField>
+    
+    <ResponseField name="code" type="string">
+      Register code
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Register name
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Register type
+    </ResponseField>
+    
+    <ResponseField name="is_active" type="boolean">
+      Active status
+    </ResponseField>
+    
+    <ResponseField name="meta" type="object">
+      Additional metadata
+    </ResponseField>
+    
+    <ResponseField name="branch" type="object">
+      Branch information
+    </ResponseField>
+    
+    <ResponseField name="operating_unit" type="object">
+      Operating unit information (if applicable)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/cash-registers \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "branch_id": 1,
+    "code": "REG-001",
+    "name": "Caja Principal",
+    "type": "ON_PREMISE",
+    "is_active": true,
+    "meta": {
+      "location": "Counter 1"
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Cash register created successfully",
+  "data": {
+    "id": 1,
+    "branch_id": 1,
+    "operating_unit_id": null,
+    "code": "REG-001",
+    "name": "Caja Principal",
+    "type": "ON_PREMISE",
+    "is_active": true,
+    "meta": {
+      "location": "Counter 1"
+    },
+    "created_at": "2025-12-13T08:00:00+00:00",
+    "updated_at": "2025-12-13T08:00:00+00:00",
+    "branch": {
+      "id": 1,
+      "name": "Sucursal Centro"
+    },
+    "operating_unit": null
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## List Cash Registers
+
+```http
+GET /api/v1/cash-registers
+```
+
+### Query Parameters
+
+<ParamField query="branch_id" type="integer">
+  Filter by branch ID
+</ParamField>
+
+<ParamField query="type" type="string">
+  Filter by register type: `ON_PREMISE`, `DELIVERY`, or `EVENT`
+</ParamField>
+
+<ParamField query="is_active" type="boolean">
+  Filter by active status
+</ParamField>
+
+<ParamField query="sort_by" type="string" default="code">
+  Sort field
+</ParamField>
+
+<ParamField query="sort_order" type="string" default="asc">
+  Sort order: `asc` or `desc`
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+Returns paginated list of cash registers with branch and operating unit information.
+
+<RequestExample>
+```bash cURL
+curl https://api.sushigo.local/api/v1/cash-registers?branch_id=1&is_active=true \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "current_page": 1,
+  "data": [
+    {
+      "id": 1,
+      "branch_id": 1,
+      "code": "REG-001",
+      "name": "Caja Principal",
+      "type": "ON_PREMISE",
+      "is_active": true,
+      "branch": {
+        "id": 1,
+        "name": "Sucursal Centro"
+      }
+    },
+    {
+      "id": 2,
+      "branch_id": 1,
+      "code": "REG-DEL",
+      "name": "Caja Delivery",
+      "type": "DELIVERY",
+      "is_active": true,
+      "branch": {
+        "id": 1,
+        "name": "Sucursal Centro"
+      }
+    }
+  ],
+  "per_page": 15,
+  "total": 2
+}
+```
+</ResponseExample>
+
+---
+
+## Get Cash Register
+
+```http
+GET /api/v1/cash-registers/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash register ID
+</ParamField>
+
+### Response
+
+Returns register details with recent sessions (last 5).
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="integer">
+      Register ID
+    </ResponseField>
+    
+    <ResponseField name="code" type="string">
+      Register code
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Register name
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Register type
+    </ResponseField>
+    
+    <ResponseField name="is_active" type="boolean">
+      Active status
+    </ResponseField>
+    
+    <ResponseField name="branch" type="object">
+      Branch information
+    </ResponseField>
+    
+    <ResponseField name="operating_unit" type="object">
+      Operating unit (for events)
+    </ResponseField>
+    
+    <ResponseField name="sessions" type="array">
+      Recent sessions (last 5)
+      <Expandable title="session object">
+        <ResponseField name="id" type="integer">
+          Session ID
+        </ResponseField>
+        <ResponseField name="operating_date" type="string">
+          Operating date
+        </ResponseField>
+        <ResponseField name="status" type="string">
+          Session status
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl https://api.sushigo.local/api/v1/cash-registers/1 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+---
+
+## Update Cash Register
+
+```http
+PUT /api/v1/cash-registers/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash register ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="operating_unit_id" type="integer">
+  Operating unit ID (for events)
+</ParamField>
+
+<ParamField body="code" type="string">
+  Register code (must be unique)
+</ParamField>
+
+<ParamField body="name" type="string">
+  Register name
+</ParamField>
+
+<ParamField body="type" type="string">
+  Register type: `ON_PREMISE`, `DELIVERY`, or `EVENT`
+</ParamField>
+
+<ParamField body="is_active" type="boolean">
+  Active status
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Updated register object
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X PUT https://api.sushigo.local/api/v1/cash-registers/1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Caja Principal Actualizada",
+    "is_active": false
+  }'
+```
+</RequestExample>
+
+---
+
+## Delete Cash Register
+
+<Warning>
+Cannot delete a register with existing sessions. Set `is_active` to `false` instead.
+</Warning>
+
+```http
+DELETE /api/v1/cash-registers/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash register ID
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X DELETE https://api.sushigo.local/api/v1/cash-registers/1 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Cash register deleted successfully"
+}
+```
+
+```json 422 Cannot Delete
+{
+  "message": "Cannot delete cash register with existing sessions"
+}
+```
+</ResponseExample>
+
+---
+
+## Register Types
+
+<Tabs>
+  <Tab title="ON_PREMISE">
+    Used for dine-in sales at the restaurant location. This is the most common type for traditional POS operations.
+  </Tab>
+  
+  <Tab title="DELIVERY">
+    Dedicated register for delivery orders. Separates delivery cash flow from on-premise operations.
+  </Tab>
+  
+  <Tab title="EVENT">
+    Temporary register for catering events or pop-up locations. Linked to an operating unit with specific dates.
+  </Tab>
+</Tabs>

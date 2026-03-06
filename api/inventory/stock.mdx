@@ -1,0 +1,354 @@
+---
+title: Stock Queries
+description: Query current stock levels across locations and variants
+---
+
+Stock queries provide real-time visibility into inventory levels. Each stock record represents a variant at a specific location with on-hand, reserved, and available quantities.
+
+## List Stock Records
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/stock?inventory_location_id=1&min_on_hand=1" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/stock?inventory_location_id=1', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Query Parameters
+
+<ParamField query="inventory_location_id" type="integer">
+  Filter by inventory location
+</ParamField>
+
+<ParamField query="item_variant_id" type="integer">
+  Filter by item variant
+</ParamField>
+
+<ParamField query="min_on_hand" type="number">
+  Filter by minimum on-hand quantity (e.g., `1` to show only items with stock)
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="array">
+  <Expandable title="Stock Record">
+    <ResponseField name="id" type="integer">Stock record ID</ResponseField>
+    <ResponseField name="inventory_location_id" type="integer">Location ID</ResponseField>
+    <ResponseField name="item_variant_id" type="integer">Variant ID</ResponseField>
+    <ResponseField name="on_hand" type="number">Total quantity on hand</ResponseField>
+    <ResponseField name="reserved" type="number">Quantity reserved (e.g., for orders)</ResponseField>
+    <ResponseField name="available" type="number">Available quantity (on_hand - reserved)</ResponseField>
+    <ResponseField name="weighted_avg_cost" type="number">Weighted average unit cost</ResponseField>
+    <ResponseField name="inventory_location" type="object">
+      Location details (id, name, type, operating_unit)
+    </ResponseField>
+    <ResponseField name="item_variant" type="object">
+      Variant details (id, code, name, item)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 200,
+  "data": [
+    {
+      "id": 1,
+      "inventory_location_id": 1,
+      "item_variant_id": 5,
+      "on_hand": 150.0,
+      "reserved": 10.0,
+      "available": 140.0,
+      "weighted_avg_cost": 27.80,
+      "inventory_location": {
+        "id": 1,
+        "name": "Almacén Principal",
+        "type": "MAIN",
+        "operating_unit": {
+          "id": 1,
+          "name": "Sucursal Centro"
+        }
+      },
+      "item_variant": {
+        "id": 5,
+        "code": "ARR-KG",
+        "name": "Arroz Premium 1kg",
+        "item": {
+          "id": 1,
+          "sku": "INS-001",
+          "name": "Arroz Sushi Premium"
+        }
+      }
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 15,
+    "total": 42
+  }
+}
+```
+
+---
+
+## Stock by Location
+
+Get a detailed stock summary for a specific inventory location, including all variants stored there.
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/stock/by-location/1" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/stock/by-location/1', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Inventory location ID
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="Location Stock Summary">
+    <ResponseField name="inventory_location" type="object">
+      <Expandable title="Location Info">
+        <ResponseField name="id" type="integer">Location ID</ResponseField>
+        <ResponseField name="name" type="string">Location name</ResponseField>
+        <ResponseField name="type" type="string">Location type</ResponseField>
+        <ResponseField name="operating_unit" type="string">Operating unit name</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="summary" type="object">
+      <Expandable title="Summary Totals">
+        <ResponseField name="total_variants" type="integer">Number of variants in this location</ResponseField>
+        <ResponseField name="total_on_hand" type="number">Total quantity on hand</ResponseField>
+        <ResponseField name="total_reserved" type="number">Total reserved quantity</ResponseField>
+        <ResponseField name="total_available" type="number">Total available quantity</ResponseField>
+        <ResponseField name="total_inventory_value" type="number">Total inventory value (on_hand × weighted_avg_cost)</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="items" type="array">
+      <Expandable title="Item Details">
+        <ResponseField name="item_variant_id" type="integer">Variant ID</ResponseField>
+        <ResponseField name="item_variant_code" type="string">Variant code</ResponseField>
+        <ResponseField name="item_variant_name" type="string">Variant name</ResponseField>
+        <ResponseField name="item_name" type="string">Parent item name</ResponseField>
+        <ResponseField name="item_sku" type="string">Parent item SKU</ResponseField>
+        <ResponseField name="on_hand" type="number">Quantity on hand</ResponseField>
+        <ResponseField name="reserved" type="number">Reserved quantity</ResponseField>
+        <ResponseField name="available" type="number">Available quantity</ResponseField>
+        <ResponseField name="weighted_avg_cost" type="number">Unit cost</ResponseField>
+        <ResponseField name="total_value" type="number">Total value (on_hand × cost)</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 200,
+  "data": {
+    "inventory_location": {
+      "id": 1,
+      "name": "Almacén Principal",
+      "type": "MAIN",
+      "operating_unit": "Sucursal Centro"
+    },
+    "summary": {
+      "total_variants": 3,
+      "total_on_hand": 425.0,
+      "total_reserved": 25.0,
+      "total_available": 400.0,
+      "total_inventory_value": 11835.00
+    },
+    "items": [
+      {
+        "item_variant_id": 5,
+        "item_variant_code": "ARR-KG",
+        "item_variant_name": "Arroz Premium 1kg",
+        "item_name": "Arroz Sushi Premium",
+        "item_sku": "INS-001",
+        "on_hand": 150.0,
+        "reserved": 10.0,
+        "available": 140.0,
+        "weighted_avg_cost": 27.80,
+        "total_value": 4170.00
+      },
+      {
+        "item_variant_id": 12,
+        "item_variant_code": "SALM-KG",
+        "item_variant_name": "Salmón Fresco 1kg",
+        "item_name": "Salmón Fresco",
+        "item_sku": "INS-002",
+        "on_hand": 25.0,
+        "reserved": 5.0,
+        "available": 20.0,
+        "weighted_avg_cost": 285.00,
+        "total_value": 7125.00
+      }
+    ]
+  }
+}
+```
+
+### Errors
+
+- `404` - Inventory location not found
+
+---
+
+## Stock by Variant
+
+Get a detailed stock summary for a specific item variant, showing quantities across all locations.
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/stock/by-variant/5" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/stock/by-variant/5', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Item variant ID
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="Variant Stock Summary">
+    <ResponseField name="item_variant" type="object">
+      <Expandable title="Variant Info">
+        <ResponseField name="id" type="integer">Variant ID</ResponseField>
+        <ResponseField name="code" type="string">Variant code</ResponseField>
+        <ResponseField name="name" type="string">Variant name</ResponseField>
+        <ResponseField name="item_name" type="string">Parent item name</ResponseField>
+        <ResponseField name="item_sku" type="string">Parent item SKU</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="summary" type="object">
+      <Expandable title="Summary Totals">
+        <ResponseField name="total_locations" type="integer">Number of locations with stock</ResponseField>
+        <ResponseField name="total_on_hand" type="number">Total quantity on hand</ResponseField>
+        <ResponseField name="total_reserved" type="number">Total reserved quantity</ResponseField>
+        <ResponseField name="total_available" type="number">Total available quantity</ResponseField>
+        <ResponseField name="avg_weighted_cost" type="number">Average weighted cost across locations</ResponseField>
+        <ResponseField name="total_inventory_value" type="number">Total inventory value</ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="locations" type="array">
+      <Expandable title="Location Details">
+        <ResponseField name="inventory_location_id" type="integer">Location ID</ResponseField>
+        <ResponseField name="location_name" type="string">Location name</ResponseField>
+        <ResponseField name="location_type" type="string">Location type</ResponseField>
+        <ResponseField name="operating_unit" type="string">Operating unit name</ResponseField>
+        <ResponseField name="on_hand" type="number">Quantity on hand</ResponseField>
+        <ResponseField name="reserved" type="number">Reserved quantity</ResponseField>
+        <ResponseField name="available" type="number">Available quantity</ResponseField>
+        <ResponseField name="weighted_avg_cost" type="number">Unit cost</ResponseField>
+        <ResponseField name="total_value" type="number">Total value</ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 200,
+  "data": {
+    "item_variant": {
+      "id": 5,
+      "code": "ARR-KG",
+      "name": "Arroz Premium 1kg",
+      "item_name": "Arroz Sushi Premium",
+      "item_sku": "INS-001"
+    },
+    "summary": {
+      "total_locations": 2,
+      "total_on_hand": 250.0,
+      "total_reserved": 15.0,
+      "total_available": 235.0,
+      "avg_weighted_cost": 27.75,
+      "total_inventory_value": 6937.50
+    },
+    "locations": [
+      {
+        "inventory_location_id": 1,
+        "location_name": "Almacén Principal",
+        "location_type": "MAIN",
+        "operating_unit": "Sucursal Centro",
+        "on_hand": 150.0,
+        "reserved": 10.0,
+        "available": 140.0,
+        "weighted_avg_cost": 27.80,
+        "total_value": 4170.00
+      },
+      {
+        "inventory_location_id": 2,
+        "location_name": "Cocina",
+        "location_type": "KITCHEN",
+        "operating_unit": "Sucursal Centro",
+        "on_hand": 100.0,
+        "reserved": 5.0,
+        "available": 95.0,
+        "weighted_avg_cost": 27.70,
+        "total_value": 2770.00
+      }
+    ]
+  }
+}
+```
+
+### Errors
+
+- `404` - Item variant not found
+
+---
+
+## Understanding Stock Fields
+
+<Note>
+**Stock Quantities:**
+- `on_hand` - Physical quantity in the location
+- `reserved` - Quantity allocated to orders or production
+- `available` - Quantity available for new allocations (on_hand - reserved)
+
+**Costing:**
+- `weighted_avg_cost` - Weighted average cost calculated from stock movements
+- Updated automatically when receiving inventory
+</Note>
+
+<Tip>
+Use `min_on_hand=1` in the list endpoint to show only items with stock, or `min_on_hand=0.01` to include all variants that have ever had stock.
+</Tip>

@@ -1,0 +1,426 @@
+---
+title: "Cash Sessions"
+description: "Manage daily cash register sessions with opening/closing balances and transaction tracking"
+---
+
+## Overview
+
+Cash sessions represent a single operational day for a cash register. Each session tracks all cash movements including adjustments and expenses, with a status lifecycle from DRAFT to POSTED.
+
+---
+
+## Create Cash Session
+
+<Note>
+Opens a new cash session for a specific register and operating date. Only one session per register per day is allowed.
+</Note>
+
+```http
+POST /api/v1/cash-sessions
+```
+
+### Request Body
+
+<ParamField body="cash_register_id" type="integer" required>
+  Cash register ID
+</ParamField>
+
+<ParamField body="operating_date" type="string" required>
+  Operating date in format `YYYY-MM-DD` (e.g., `2025-12-13`)
+</ParamField>
+
+<ParamField body="opening_balance" type="number">
+  Opening cash balance. If not provided, defaults to previous day's closing balance
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata for the session
+  
+  <Expandable title="properties">
+    <ResponseField name="note" type="string">
+      Session note (e.g., "Morning shift")
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="integer">
+      Cash session ID
+    </ResponseField>
+    
+    <ResponseField name="cash_register_id" type="integer">
+      Associated cash register ID
+    </ResponseField>
+    
+    <ResponseField name="operating_date" type="string">
+      Operating date (YYYY-MM-DD)
+    </ResponseField>
+    
+    <ResponseField name="status" type="string">
+      Session status: `DRAFT` or `POSTED`
+    </ResponseField>
+    
+    <ResponseField name="opening_balance" type="string">
+      Opening balance as decimal string
+    </ResponseField>
+    
+    <ResponseField name="closing_balance" type="string">
+      Closing balance as decimal string (null until posted)
+    </ResponseField>
+    
+    <ResponseField name="meta" type="object">
+      Additional metadata
+    </ResponseField>
+    
+    <ResponseField name="cash_register" type="object">
+      <Expandable title="properties">
+        <ResponseField name="id" type="integer">
+          Register ID
+        </ResponseField>
+        <ResponseField name="code" type="string">
+          Register code
+        </ResponseField>
+        <ResponseField name="name" type="string">
+          Register name
+        </ResponseField>
+        <ResponseField name="branch" type="object">
+          Branch information
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/cash-sessions \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cash_register_id": 1,
+    "operating_date": "2025-12-13",
+    "opening_balance": 1000.00,
+    "meta": {
+      "note": "Morning shift"
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Cash session created successfully",
+  "data": {
+    "id": 15,
+    "cash_register_id": 1,
+    "operating_date": "2025-12-13",
+    "status": "DRAFT",
+    "opening_balance": "1000.0000",
+    "closing_balance": null,
+    "meta": {
+      "note": "Morning shift"
+    },
+    "created_at": "2025-12-13T08:00:00+00:00",
+    "updated_at": "2025-12-13T08:00:00+00:00",
+    "cash_register": {
+      "id": 1,
+      "code": "REG-001",
+      "name": "Caja Principal",
+      "branch": {
+        "id": 1,
+        "name": "Sucursal Centro"
+      }
+    }
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## List Cash Sessions
+
+```http
+GET /api/v1/cash-sessions
+```
+
+### Query Parameters
+
+<ParamField query="cash_register_id" type="integer">
+  Filter by cash register ID
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by status: `DRAFT` or `POSTED`
+</ParamField>
+
+<ParamField query="date" type="string">
+  Filter by specific date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField query="date_from" type="string">
+  Filter from date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField query="date_to" type="string">
+  Filter to date (YYYY-MM-DD)
+</ParamField>
+
+<ParamField query="sort_by" type="string" default="operating_date">
+  Sort field
+</ParamField>
+
+<ParamField query="sort_order" type="string" default="desc">
+  Sort order: `asc` or `desc`
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+Returns paginated list of cash sessions with calculated current balance.
+
+<RequestExample>
+```bash cURL
+curl https://api.sushigo.local/api/v1/cash-sessions?status=DRAFT&per_page=10 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+---
+
+## Get Cash Session
+
+```http
+GET /api/v1/cash-sessions/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash session ID
+</ParamField>
+
+### Response
+
+Returns session with related adjustments, expenses, and register information.
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="integer">
+      Session ID
+    </ResponseField>
+    
+    <ResponseField name="adjustments" type="array">
+      Array of cash adjustments
+      <Expandable title="adjustment object">
+        <ResponseField name="id" type="integer">
+          Adjustment ID
+        </ResponseField>
+        <ResponseField name="type" type="string">
+          `EXTERNAL_IMPORT` or `CORRECTION`
+        </ResponseField>
+        <ResponseField name="direction" type="string">
+          `INFLOW` or `OUTFLOW`
+        </ResponseField>
+        <ResponseField name="lines" type="array">
+          Adjustment lines by tender type
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="expenses" type="array">
+      Array of cash expenses
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Update Cash Session
+
+<Warning>
+Only DRAFT sessions can be updated. Posted sessions are immutable.
+</Warning>
+
+```http
+PUT /api/v1/cash-sessions/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash session ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="opening_balance" type="number">
+  Opening balance
+</ParamField>
+
+<ParamField body="closing_balance" type="number">
+  Closing balance
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Updated session object
+</ResponseField>
+
+---
+
+## Post Cash Session
+
+<Note>
+Finalizes the session by calculating closing balance and changing status to POSTED. All adjustments and expenses must be posted first.
+</Note>
+
+```http
+POST /api/v1/cash-sessions/{id}/post
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash session ID
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Posted session with calculated closing balance
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/cash-sessions/15/post \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Cash session posted successfully",
+  "data": {
+    "id": 15,
+    "cash_register_id": 1,
+    "operating_date": "2025-12-13",
+    "status": "POSTED",
+    "opening_balance": "1000.0000",
+    "closing_balance": "2350.5000",
+    "meta": {
+      "note": "Morning shift"
+    },
+    "created_at": "2025-12-13T08:00:00+00:00",
+    "updated_at": "2025-12-13T20:00:00+00:00",
+    "cash_register": {
+      "id": 1,
+      "code": "REG-001",
+      "name": "Caja Principal"
+    }
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Get Session Summary
+
+```http
+GET /api/v1/cash-sessions/{id}/summary
+```
+
+Returns detailed summary with income/expense breakdown by tender type.
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash session ID
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="opening_balance" type="number">
+      Session opening balance
+    </ResponseField>
+    
+    <ResponseField name="closing_balance" type="number">
+      Calculated closing balance
+    </ResponseField>
+    
+    <ResponseField name="total_inflow" type="number">
+      Total cash inflows
+    </ResponseField>
+    
+    <ResponseField name="total_outflow" type="number">
+      Total cash outflows
+    </ResponseField>
+    
+    <ResponseField name="total_expenses" type="number">
+      Total expenses
+    </ResponseField>
+    
+    <ResponseField name="by_tender_type" type="object">
+      Breakdown by tender type (CASH, CARD, TRANSFER)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl https://api.sushigo.local/api/v1/cash-sessions/15/summary \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+---
+
+## Error Responses
+
+<ResponseExample>
+```json 422 Validation Error
+{
+  "message": "A session already exists for this register on this date"
+}
+```
+
+```json 403 Cannot Update Posted Session
+{
+  "message": "Cannot update posted session"
+}
+```
+
+```json 422 Cannot Post Session
+{
+  "message": "Cannot post session - has unposted transactions"
+}
+```
+</ResponseExample>

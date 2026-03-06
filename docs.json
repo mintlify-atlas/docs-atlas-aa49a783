@@ -1,122 +1,141 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "SushiGo",
+  "theme": "almond",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#E63946",
+    "light": "#F4A3A8",
+    "dark": "#A4161A"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/pakodiazdev/sushigo"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/pakodiazdev/sushigo"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "core/architecture",
+              "core/operating-units",
+              "core/authentication",
+              "core/permissions"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Inventory Management",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "inventory/overview",
+              "inventory/items-and-variants",
+              "inventory/locations",
+              "inventory/stock-movements",
+              "inventory/unit-conversions"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Cash Management",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "cash/overview",
+              "cash/sessions",
+              "cash/registers-and-terminals",
+              "cash/adjustments",
+              "cash/expenses",
+              "cash/bank-accounts"
+            ]
+          },
+          {
+            "group": "Employee Management",
+            "pages": [
+              "employees/overview",
+              "employees/creating-employees",
+              "employees/roles-and-permissions",
+              "employees/wage-history",
+              "employees/attendance-tracking"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/environment-setup",
+              "development/docker-compose",
+              "development/testing",
+              "development/conventions"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Authentication",
             "pages": [
-              "api-reference/introduction"
+              "api/auth/login",
+              "api/auth/logout",
+              "api/auth/me",
+              "api/auth/password-reset"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Inventory",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/inventory/items",
+              "api/inventory/item-variants",
+              "api/inventory/locations",
+              "api/inventory/stock",
+              "api/inventory/movements",
+              "api/inventory/units-of-measure"
+            ]
+          },
+          {
+            "group": "Cash Operations",
+            "pages": [
+              "api/cash/sessions",
+              "api/cash/registers",
+              "api/cash/terminals",
+              "api/cash/adjustments",
+              "api/cash/expenses",
+              "api/cash/bank-accounts"
+            ]
+          },
+          {
+            "group": "Employees",
+            "pages": [
+              "api/employees/list",
+              "api/employees/create",
+              "api/employees/update",
+              "api/employees/wages",
+              "api/employees/attendance"
+            ]
+          },
+          {
+            "group": "Operating Units",
+            "pages": [
+              "api/operating-units/list",
+              "api/operating-units/create",
+              "api/operating-units/users"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

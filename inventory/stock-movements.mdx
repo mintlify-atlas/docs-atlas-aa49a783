@@ -1,0 +1,757 @@
+---
+title: "Stock Movements"
+description: "Record and track all inventory transactions with complete audit trail"
+---
+
+## Overview
+
+Stock Movements are the heart of inventory traceability. Every change to stock—whether opening balance, transfer, sale, or adjustment—is recorded as a `StockMovement` with full details: who, when, why, and how much.
+
+<Info>
+  All movements support **multi-UOM transactions**: you can receive in boxes but track in units, or sell in grams but store in kilograms.
+</Info>
+
+## Movement Types
+
+SushiGo supports seven movement reasons, each with specific directional semantics:
+
+### OPENING_BALANCE - Initial Stock
+
+<ParamField body="reason" type="enum" default="OPENING_BALANCE">
+  Registers initial inventory at a location
+</ParamField>
+
+**Direction**: IN (to_location only)  
+**Use case**: First-time stock registration, new location setup  
+**Cost impact**: Updates `weighted_avg_cost` and `last_unit_cost`
+
+**Example**: Register 50kg rice at Main Warehouse with cost $2.50/kg
+
+### TRANSFER - Location to Location
+
+<ParamField body="reason" type="enum" default="TRANSFER">
+  Moves stock between locations within or across operating units
+</ParamField>
+
+**Direction**: BOTH (from_location → to_location)  
+**Use case**: Daily prep transfers (MAIN → KITCHEN), inter-branch transfers  
+**Cost impact**: No cost update (preserves weighted average)
+
+**Example**: Transfer 10kg rice from Main Warehouse to Kitchen
+
+### RETURN - Reverse Movement
+
+<ParamField body="reason" type="enum" default="RETURN">
+  Returns stock from customer or location back to source
+</ParamField>
+
+**Direction**: BOTH (from_location → to_location)  
+**Use case**: Customer returns, unused event stock returning to branch  
+**Cost impact**: No cost update
+
+**Example**: Return 5kg unused rice from event to Main Warehouse
+
+### SALE - Customer Sale
+
+<ParamField body="reason" type="enum" default="SALE">
+  Records sale to customer (decreases inventory)
+</ParamField>
+
+**Direction**: OUT (from_location only)  
+**Use case**: Customer purchases, POS integration  
+**Cost impact**: No cost update (uses current weighted average for COGS)
+
+**Example**: Sell 2kg rice to customer at $5/kg
+
+### CONSUMPTION - Internal Use
+
+<ParamField body="reason" type="enum" default="CONSUMPTION">
+  Internal consumption without sale (meals, samples, spoilage)
+</ParamField>
+
+**Direction**: OUT (from_location only)  
+**Use case**: Employee meals, tastings, damaged/expired items  
+**Cost impact**: No cost update (expense tracking)
+
+**Example**: 0.5kg rice spoiled due to contamination
+
+### ADJUSTMENT - Manual Correction
+
+<ParamField body="reason" type="enum" default="ADJUSTMENT">
+  Manual stock adjustment (up or down)
+</ParamField>
+
+**Direction**: IN or OUT (single location)  
+**Use case**: Inventory corrections, system adjustments  
+**Cost impact**: Optional (can update cost on upward adjustments)
+
+**Example**: Adjust inventory +2kg after finding misplaced stock
+
+### COUNT_VARIANCE - Physical Count
+
+<ParamField body="reason" type="enum" default="COUNT_VARIANCE">
+  Adjustment from physical inventory count
+</ParamField>
+
+**Direction**: IN or OUT (single location)  
+**Use case**: Daily/weekly/monthly physical counts  
+**Cost impact**: No cost update (variance tracking)
+
+**Example**: Physical count shows 48kg actual vs 50kg system = -2kg variance
+
+## Movement Status
+
+Each movement has a status that controls whether it affects stock:
+
+<Tabs>
+  <Tab title="DRAFT">
+    Created but not posted. Does not affect stock. Can be edited or deleted.
+  </Tab>
+  <Tab title="POSTED">
+    Posted and applied to stock. Cannot be edited. Can only be reversed.
+  </Tab>
+  <Tab title="REVERSED">
+    Reversed by creating an opposite movement. Original preserved for audit.
+  </Tab>
+</Tabs>
+
+<Warning>
+  Only **POSTED** movements affect stock quantities. Draft movements are for preparation only.
+</Warning>
+
+## Movement Fields
+
+<ParamField body="from_location_id" type="integer">
+  Source location (null for entries like OPENING_BALANCE)
+</ParamField>
+
+<ParamField body="to_location_id" type="integer">
+  Target location (null for exits like SALE)
+</ParamField>
+
+<ParamField body="item_variant_id" type="integer" required>
+  Item variant being moved
+</ParamField>
+
+<ParamField body="user_id" type="integer">
+  User who created the movement (auto-populated)
+</ParamField>
+
+<ParamField body="qty" type="decimal(4)" required>
+  Quantity in **base UOM** (auto-converted from transaction UOM)
+</ParamField>
+
+<ParamField body="reason" type="enum" required>
+  Movement reason code
+</ParamField>
+
+<ParamField body="status" type="enum" default="POSTED">
+  DRAFT, POSTED, or REVERSED
+</ParamField>
+
+<ParamField body="reference" type="string(100)">
+  External reference number (PO, invoice, ticket, etc.)
+</ParamField>
+
+<ParamField body="related_id" type="integer">
+  ID of related entity (sale, purchase order, etc.)
+</ParamField>
+
+<ParamField body="related_type" type="string">
+  Polymorphic type (Sale, PurchaseOrder, etc.)
+</ParamField>
+
+<ParamField body="notes" type="text">
+  Additional notes or explanation
+</ParamField>
+
+<ParamField body="meta" type="jsonb" default="{}">
+  Movement metadata:
+  - `original_qty`: Quantity in transaction UOM
+  - `original_uom`: Transaction UOM code
+  - `unit_cost`: Cost per transaction unit
+  - `base_cost`: Cost per base unit
+  - `sale_price`: Sale price per transaction unit
+  - `conversion_factor`: UOM conversion factor applied
+</ParamField>
+
+<ParamField body="posted_at" type="timestamp">
+  When the movement was posted (auto-set on posting)
+</ParamField>
+
+## API Endpoints
+
+### Register Opening Balance
+
+```http
+POST /api/v1/inventory/opening-balance
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "inventory_location_id": 1,
+  "item_variant_id": 3,
+  "quantity": 50.0,
+  "uom_id": 3,
+  "unit_cost": 2.50,
+  "reference": "INV-2026-001",
+  "notes": "Initial inventory count - Main Warehouse"
+}
+```
+
+<ResponseExample>
+```json Response (201 Created)
+{
+  "status": 201,
+  "data": {
+    "id": 1,
+    "inventory_location_id": 1,
+    "item_variant_id": 3,
+    "quantity": 50.0,
+    "uom": "KG",
+    "base_quantity": 50.0,
+    "base_uom": "KG",
+    "unit_cost": 2.50,
+    "base_cost": 2.50,
+    "reference": "INV-2026-001",
+    "notes": "Initial inventory count - Main Warehouse",
+    "status": "POSTED",
+    "posted_at": "2026-03-06T10:00:00Z",
+    "location": {
+      "id": 1,
+      "name": "Main Warehouse",
+      "type": "MAIN"
+    },
+    "variant": {
+      "id": 3,
+      "code": "ARR-KG",
+      "name": "Arroz Premium 1kg",
+      "item_name": "Arroz Sushi Premium",
+      "avg_unit_cost": 2.5000
+    }
+  }
+}
+```
+</ResponseExample>
+
+<Info>
+  Opening balance automatically posts and updates `stock.on_hand` and `item_variant.avg_unit_cost`
+</Info>
+
+### Register Stock Out (Sale or Consumption)
+
+```http
+POST /api/v1/inventory/stock-out
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "inventory_location_id": 2,
+  "item_variant_id": 3,
+  "qty": 5.0,
+  "uom_id": 3,
+  "reason": "SALE",
+  "sale_price": 4.50,
+  "reference": "SALE-2026-045",
+  "notes": "Customer sale - Receipt #045"
+}
+```
+
+<ResponseExample>
+```json Response (201 Created)
+{
+  "success": true,
+  "data": {
+    "id": 2,
+    "from_location_id": 2,
+    "to_location_id": null,
+    "item_variant_id": 3,
+    "user_id": 1,
+    "qty": "5.0000",
+    "reason": "SALE",
+    "status": "POSTED",
+    "reference": "SALE-2026-045",
+    "notes": "Customer sale - Receipt #045",
+    "meta": {
+      "original_qty": 5.0,
+      "original_uom": "KG",
+      "unit_cost": 2.50,
+      "sale_price": 4.50,
+      "profit_margin": 2.00
+    },
+    "posted_at": "2026-03-06T11:30:00Z",
+    "from_location": {
+      "id": 2,
+      "name": "Kitchen - Prep 1"
+    },
+    "item_variant": {
+      "id": 3,
+      "code": "ARR-KG",
+      "name": "Arroz Premium 1kg",
+      "item": {
+        "id": 1,
+        "name": "Arroz Sushi Premium"
+      }
+    }
+  },
+  "message": "Stock out movement registered successfully"
+}
+```
+</ResponseExample>
+
+<Warning>
+  Stock out validates available stock: `stock.available >= requested_qty`. Returns 400 if insufficient.
+</Warning>
+
+### Register Transfer
+
+```http
+POST /api/v1/inventory/transfers
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "from_location_id": 1,
+  "to_location_id": 2,
+  "item_variant_id": 3,
+  "quantity": 10.0,
+  "uom_id": 3,
+  "reference": "XFER-2026-012",
+  "notes": "Daily morning prep transfer"
+}
+```
+
+<ResponseExample>
+```json Response (201 Created)
+{
+  "status": 201,
+  "data": {
+    "id": 3,
+    "from_location_id": 1,
+    "to_location_id": 2,
+    "item_variant_id": 3,
+    "qty": "10.0000",
+    "reason": "TRANSFER",
+    "status": "POSTED",
+    "reference": "XFER-2026-012",
+    "posted_at": "2026-03-06T08:00:00Z",
+    "from_location": {
+      "id": 1,
+      "name": "Main Warehouse"
+    },
+    "to_location": {
+      "id": 2,
+      "name": "Kitchen - Prep 1"
+    },
+    "variant": {
+      "id": 3,
+      "name": "Arroz Premium 1kg"
+    }
+  }
+}
+```
+</ResponseExample>
+
+### List Movements
+
+```http
+GET /api/v1/inventory/movements?location_id=1&reason=SALE&from_date=2026-03-01&to_date=2026-03-06
+Authorization: Bearer {token}
+```
+
+<ParamField query="location_id" type="integer">
+  Filter by location (from OR to)
+</ParamField>
+
+<ParamField query="item_variant_id" type="integer">
+  Filter by item variant
+</ParamField>
+
+<ParamField query="reason" type="enum">
+  Filter by movement reason
+</ParamField>
+
+<ParamField query="status" type="enum">
+  Filter by status (DRAFT, POSTED, REVERSED)
+</ParamField>
+
+<ParamField query="from_date" type="date">
+  Filter movements on or after this date
+</ParamField>
+
+<ParamField query="to_date" type="date">
+  Filter movements on or before this date
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Results per page
+</ParamField>
+
+## Real-World Examples
+
+### Example 1: Opening Balance with Cost
+
+Register initial stock of salmon at main warehouse:
+
+```json
+{
+  "inventory_location_id": 1,
+  "item_variant_id": 5,
+  "quantity": 20.0,
+  "uom_id": 3,
+  "unit_cost": 18.50,
+  "reference": "PO-2026-123",
+  "notes": "First purchase from Supplier A"
+}
+```
+
+**Result**:
+- `stock.on_hand` → 20.0 kg
+- `stock.weighted_avg_cost` → $18.50/kg
+- `item_variant.avg_unit_cost` → $18.50
+- `item_variant.last_unit_cost` → $18.50
+
+### Example 2: Multi-UOM Transfer
+
+Transfer rice from warehouse (in kg) to kitchen (prep counted in g):
+
+**Warehouse has**: 50 kg rice  
+**Transfer**: 2000 g (2 kg)
+
+```json
+{
+  "from_location_id": 1,
+  "to_location_id": 2,
+  "item_variant_id": 3,
+  "quantity": 2000.0,
+  "uom_id": 4,
+  "notes": "Morning prep - 2kg in grams"
+}
+```
+
+**System behavior**:
+1. Validates conversion: 2000g → 2kg (factor: 0.001)
+2. Checks availability: 50kg available ≥ 2kg ✓
+3. Updates stock:
+   - Location 1: 50kg → 48kg
+   - Location 2: 0kg → 2kg
+4. Records in `meta`:
+   ```json
+   {
+     "original_qty": 2000.0,
+     "original_uom": "G",
+     "conversion_factor": 0.001
+   }
+   ```
+
+### Example 3: Sale with Profit Tracking
+
+Sell sushi roll with automatic profit calculation:
+
+```json
+{
+  "inventory_location_id": 2,
+  "item_variant_id": 10,
+  "qty": 8.0,
+  "uom_id": 1,
+  "reason": "SALE",
+  "sale_price": 15.00,
+  "reference": "TKT-2026-1234"
+}
+```
+
+**Variant data**:
+- `avg_unit_cost`: $8.50/unit
+
+**Result**:
+- `stock.on_hand` decreases by 8 units
+- `meta.unit_cost`: $8.50
+- `meta.sale_price`: $15.00
+- `meta.profit_margin`: $6.50 per unit ($15 - $8.50)
+- Total profit: 8 × $6.50 = $52.00
+
+### Example 4: Spoilage Tracking
+
+Record spoiled items for loss analysis:
+
+```json
+{
+  "inventory_location_id": 2,
+  "item_variant_id": 5,
+  "qty": 1.5,
+  "uom_id": 3,
+  "reason": "CONSUMPTION",
+  "notes": "Salmon spoiled - refrigeration failure"
+}
+```
+
+**Result**:
+- Stock decreases by 1.5 kg
+- Cost recorded in `meta.unit_cost` for loss report
+- Movement tagged with CONSUMPTION for spoilage analysis
+
+## UOM Conversion Flow
+
+When a movement uses a different UOM than the variant's base:
+
+<Steps>
+  <Step title="Lookup Conversion">
+    System finds `uom_conversions` record: from_uom → to_uom
+  </Step>
+  <Step title="Apply Factor">
+    `base_qty = transaction_qty × conversion_factor`
+  </Step>
+  <Step title="Store Both">
+    - `qty` field: base quantity (for stock updates)
+    - `meta.original_qty`, `meta.original_uom`: transaction quantity
+  </Step>
+  <Step title="Update Stock">
+    Stock updated in base UOM for consistency
+  </Step>
+</Steps>
+
+**Example**: Receive in boxes, store in units
+
+- Variant base UOM: `UNIT` (individual bottles)
+- Receipt UOM: `BOX` (24 units per box)
+- Conversion: 1 BOX = 24 UNIT (factor: 24)
+
+```json
+{
+  "quantity": 5.0,
+  "uom_id": 5
+}
+```
+
+**Conversion**:
+- `base_qty = 5 × 24 = 120 units`
+- `meta.original_qty = 5`
+- `meta.original_uom = "BOX"`
+- `meta.conversion_factor = 24`
+
+## Movement Lines (Multi-Line)
+
+For complex movements with multiple items, use `StockMovementLine`:
+
+```json
+{
+  "from_location_id": 1,
+  "to_location_id": 2,
+  "reason": "TRANSFER",
+  "reference": "BATCH-2026-PREP",
+  "lines": [
+    {
+      "item_variant_id": 3,
+      "qty": 10.0,
+      "uom_id": 3
+    },
+    {
+      "item_variant_id": 5,
+      "qty": 5.0,
+      "uom_id": 3
+    },
+    {
+      "item_variant_id": 8,
+      "qty": 20.0,
+      "uom_id": 1
+    }
+  ]
+}
+```
+
+Each line has its own UOM conversion and cost tracking.
+
+## Business Rules
+
+<CardGroup cols={2}>
+  <Card title="Atomic Operations" icon="atom">
+    All stock updates are transactional (rollback on error)
+  </Card>
+  <Card title="Availability Validation" icon="check">
+    Outbound movements validate available stock before posting
+  </Card>
+  <Card title="Cost Preservation" icon="piggy-bank">
+    Only OPENING_BALANCE updates costs; transfers preserve weighted average
+  </Card>
+  <Card title="Immutable Posted" icon="lock">
+    Posted movements cannot be edited, only reversed
+  </Card>
+</CardGroup>
+
+### Movement Direction Rules
+
+| Reason | from_location | to_location | Validation |
+|--------|---------------|-------------|------------|
+| OPENING_BALANCE | null | required | N/A |
+| TRANSFER | required | required | from ≠ to, same branch check |
+| RETURN | required | required | N/A |
+| SALE | required | null | available >= qty |
+| CONSUMPTION | required | null | available >= qty |
+| ADJUSTMENT | optional | optional | at least one location |
+| COUNT_VARIANCE | optional | optional | at least one location |
+
+## Workflows
+
+### Workflow 1: Daily Prep Transfer
+
+<Steps>
+  <Step title="Morning Stock Check">
+    Check available stock at MAIN location
+  </Step>
+  <Step title="Create Transfer">
+    POST `/api/v1/inventory/transfers` MAIN → KITCHEN
+  </Step>
+  <Step title="System Validates">
+    Checks availability, UOM conversion, location compatibility
+  </Step>
+  <Step title="Stock Updated">
+    Atomically decreases MAIN, increases KITCHEN
+  </Step>
+  <Step title="Prep Begins">
+    Kitchen uses stock for production/service
+  </Step>
+</Steps>
+
+### Workflow 2: Physical Count Adjustment
+
+<Steps>
+  <Step title="Perform Physical Count">
+    Count actual quantities at each location
+  </Step>
+  <Step title="Compare with System">
+    `system_qty` vs `physical_qty` → variance
+  </Step>
+  <Step title="Register Variance">
+    POST adjustment with reason=COUNT_VARIANCE
+  </Step>
+  <Step title="Analyze Variance">
+    Generate variance report for investigation
+  </Step>
+</Steps>
+
+### Workflow 3: Sale with Profitability
+
+<Steps>
+  <Step title="Customer Order">
+    POS or manual order entry
+  </Step>
+  <Step title="Register Stock Out">
+    POST `/api/v1/inventory/stock-out` with reason=SALE, sale_price
+  </Step>
+  <Step title="System Calculates">
+    - COGS: `qty × avg_unit_cost`
+    - Revenue: `qty × sale_price`
+    - Profit: Revenue - COGS
+  </Step>
+  <Step title="Update Stock">
+    Decrease stock.on_hand by qty
+  </Step>
+  <Step title="Record for Reporting">
+    Movement stored with profit metadata for analytics
+  </Step>
+</Steps>
+
+## Error Handling
+
+Common errors and solutions:
+
+<AccordionGroup>
+  <Accordion title="Insufficient Stock (400)">
+    **Error**: "Insufficient stock. Available: 5, Requested: 10"
+    
+    **Causes**:
+    - Stock reserved by pending orders
+    - Recent consumption not reflected
+    
+    **Solutions**:
+    - Check `stock.available` (not just `on_hand`)
+    - Transfer from another location
+    - Reduce requested quantity
+  </Accordion>
+  
+  <Accordion title="No Conversion Found (400)">
+    **Error**: "No active conversion found from BOX to KG"
+    
+    **Causes**:
+    - Missing UOM conversion record
+    - Conversion marked as inactive
+    
+    **Solutions**:
+    - Create conversion: `/api/v1/uom-conversions`
+    - Use base UOM instead
+    - Activate existing conversion
+  </Accordion>
+  
+  <Accordion title="Location Not Found (422)">
+    **Error**: "The selected inventory location does not exist"
+    
+    **Causes**:
+    - Invalid location ID
+    - Location soft-deleted
+    
+    **Solutions**:
+    - Verify location ID exists
+    - Check `is_active=true`
+    - Restore deleted location if needed
+  </Accordion>
+  
+  <Accordion title="Invalid Movement Direction (422)">
+    **Error**: "SALE movements require from_location only"
+    
+    **Causes**:
+    - Wrong location field for reason type
+    
+    **Solutions**:
+    - SALE/CONSUMPTION: only `from_location`
+    - OPENING_BALANCE: only `to_location`
+    - TRANSFER/RETURN: both locations required
+  </Accordion>
+</AccordionGroup>
+
+## Database Schema
+
+### stock_movements Table
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | bigint | PK, auto-increment |
+| from_location_id | bigint | FK → inventory_locations.id, NULLABLE |
+| to_location_id | bigint | FK → inventory_locations.id, NULLABLE |
+| item_variant_id | bigint | FK → item_variants.id, NOT NULL |
+| user_id | bigint | FK → users.id, NULLABLE |
+| qty | decimal(10,4) | NOT NULL (in base UOM) |
+| reason | enum | NOT NULL |
+| status | enum | DEFAULT 'POSTED' |
+| reference | varchar(100) | NULLABLE |
+| related_id | bigint | NULLABLE |
+| related_type | varchar(255) | NULLABLE |
+| notes | text | NULLABLE |
+| meta | jsonb | DEFAULT '{}' |
+| posted_at | timestamp | NULLABLE |
+| created_at | timestamp | |
+| updated_at | timestamp | |
+
+**Indexes**:
+- `idx_stock_movements_from_location` on (from_location_id)
+- `idx_stock_movements_to_location` on (to_location_id)
+- `idx_stock_movements_item_variant` on (item_variant_id)
+- `idx_stock_movements_reason` on (reason)
+- `idx_stock_movements_posted_at` on (posted_at DESC)
+
+**Constraints**:
+- Check: `(from_location_id IS NOT NULL) OR (to_location_id IS NOT NULL)`
+- Check: `qty > 0`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Unit Conversions" icon="ruler" href="/inventory/unit-conversions">
+    Set up UOM conversions for multi-unit transactions
+  </Card>
+  <Card title="Items & Variants" icon="box" href="/inventory/items-and-variants">
+    Define items and variants to move
+  </Card>
+  <Card title="Inventory Locations" icon="warehouse" href="/inventory/locations">
+    Configure locations for stock storage
+  </Card>
+</CardGroup>

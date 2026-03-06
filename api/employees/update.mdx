@@ -1,0 +1,346 @@
+---
+title: "Update Employee"
+description: "Update employee details and manage employment status"
+api: "PUT /api/v1/employees/{id}"
+---
+
+## Overview
+
+Updates an employee's personal information, contact details (admin only), and position roles. This endpoint also covers related employee management actions like toggling active status, deactivation, and rehire.
+
+<Info>
+  All fields are optional - only send the fields you want to update. Email and phone can only be updated by users with admin or super-admin roles.
+</Info>
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from OAuth2 authentication
+</ParamField>
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  Employee public identifier (ULID format)
+  
+  **Example**: `"01JKXYZ1234567890ABCDEFGH"`
+</ParamField>
+
+## Body Parameters
+
+<ParamField body="first_name" type="string">
+  Employee first name (max 100 characters)
+  
+  **Example**: `"Juan"`
+  
+  <Note>When first name or last name changes, the linked user's full name is automatically updated.</Note>
+</ParamField>
+
+<ParamField body="last_name" type="string">
+  Employee last name (max 100 characters)
+  
+  **Example**: `"Pérez"`
+</ParamField>
+
+<ParamField body="roles" type="array">
+  Array of position role names to assign. Must contain at least one role if provided.
+  
+  **Allowed values** (for non-super-admins): `manager`, `cook`, `kitchen-assistant`, `delivery-driver`, `acting-manager`, `admin`
+  
+  **Super-admin only**: `super-admin` role can only be assigned by users with the super-admin role
+  
+  **Example**: `["manager", "cook"]`
+  
+  <Warning>
+    This replaces all current roles. Non-manageable roles (like roles outside your permission scope) are preserved automatically.
+  </Warning>
+</ParamField>
+
+<ParamField body="email" type="string">
+  **Admin/Super-Admin only**. Employee email address. Can be set to `null` to remove email (as long as phone is present).
+  
+  **Format**: Valid email address (max 255 characters) or `null`
+  
+  **Example**: `"juan.perez@sushigo.com"`
+  
+  <Warning>
+    Cannot clear both email and phone simultaneously. At least one contact method must remain.
+  </Warning>
+</ParamField>
+
+<ParamField body="phone" type="string">
+  **Admin/Super-Admin only**. Employee phone number. Can be set to `null` to remove phone (as long as email is present).
+  
+  **Format**: 10-digit national phone number without country code or `null`
+  
+  **Example**: `"5512345678"` or `null`
+  
+  <Note>
+    When phone is updated, the phone_country is automatically set to the configured default country code (+52 for Mexico).
+  </Note>
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Optional metadata object. Can be set to `null` to clear existing metadata.
+  
+  **Example**: `{"notes": "Updated shift preferences"}`
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (200)
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The updated employee object with the same structure as the [Create Employee](/api/employees/create#response) endpoint.
+</ResponseField>
+
+## Errors
+
+<ResponseField name="404" type="object">
+  Employee not found
+</ResponseField>
+
+<ResponseField name="422" type="object">
+  Validation error
+  
+  Common validation errors:
+  - Email already in use by another user
+  - Phone already in use by another user
+  - Cannot clear both email and phone
+  - Cannot modify email/phone on employee without linked user
+  - Invalid role assignment
+</ResponseField>
+
+## Examples
+
+<Tabs>
+  <Tab title="Update name">
+    ```bash
+    curl -X PUT "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "first_name": "Juan Carlos",
+        "last_name": "Pérez López"
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="Update roles">
+    ```bash
+    curl -X PUT "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "roles": ["manager", "acting-manager"]
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="Update contact (admin)">
+    ```bash
+    curl -X PUT "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "email": "juan.perez.new@sushigo.com",
+        "phone": "5599887766"
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="Update metadata">
+    ```bash
+    curl -X PUT "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "meta": {
+          "shift_preference": "evening",
+          "certifications": ["food_handler", "first_aid"]
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Response Example
+
+```json
+{
+  "status": 200,
+  "data": {
+    "id": "01JKXYZ1234567890ABCDEFGH",
+    "code": "EMP-001",
+    "first_name": "Juan Carlos",
+    "last_name": "Pérez López",
+    "is_active": true,
+    "email": "juan.perez@sushigo.com",
+    "phone": "5512345678",
+    "roles": ["manager", "acting-manager"],
+    "employment_periods": [
+      {
+        "id": "01JKXYZ9876543210ZYXWVUTS",
+        "branch_id": 1,
+        "branch": {
+          "id": 1,
+          "name": "SushiGo Centro",
+          "code": "CENTRO"
+        },
+        "start_date": "2026-01-15",
+        "end_date": null,
+        "is_active": true
+      }
+    ],
+    "meta": null,
+    "created_at": "2026-01-15T14:30:00+00:00",
+    "updated_at": "2026-02-20T10:15:00+00:00"
+  }
+}
+```
+
+## Toggle Active Status
+
+Quickly enable or disable an employee without changing their employment period.
+
+### Endpoint
+
+```
+PATCH /api/v1/employees/{id}/toggle-active
+```
+
+### Behavior
+
+- Flips the `is_active` flag from `true` to `false` or vice versa
+- Does NOT create or end employment periods
+- Requires an active employment period to operate
+
+<Warning>
+  This is NOT a "baja" (termination). Use [Deactivate Employee](#deactivate) to properly terminate an employment period.
+</Warning>
+
+### Example
+
+```bash
+curl -X PATCH "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH/toggle-active" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Response
+
+Returns the updated employee object with `is_active` toggled.
+
+## Deactivate Employee
+
+Properly terminate an employee by ending their active employment period.
+
+### Endpoint
+
+```
+POST /api/v1/employees/{id}/deactivate
+```
+
+### Body Parameters
+
+<ParamField body="end_date" type="string" required>
+  End date for the employment period. Must be on or after the period's start date.
+  
+  **Format**: YYYY-MM-DD
+  
+  **Example**: `"2026-12-31"`
+</ParamField>
+
+<ParamField body="termination_reason" type="string">
+  Optional reason for termination (max 500 characters)
+  
+  **Example**: `"Voluntary resignation - relocated to another city"`
+</ParamField>
+
+### Behavior
+
+- Sets the active employment period's `is_active` to `false`
+- Records the `end_date` and `termination_reason`
+- Sets employee's `is_active` to `false`
+
+### Example
+
+```bash
+curl -X POST "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH/deactivate" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "end_date": "2026-12-31",
+    "termination_reason": "Voluntary resignation"
+  }'
+```
+
+### Response
+
+Returns the updated employee object with the terminated employment period.
+
+### Errors
+
+- **422**: Employee has no active employment period
+- **422**: End date is before the employment period start date
+
+## Rehire Employee
+
+Create a new employment period for a previously terminated employee.
+
+### Endpoint
+
+```
+POST /api/v1/employees/{id}/rehire
+```
+
+### Body Parameters
+
+<ParamField body="branch_id" type="integer" required>
+  ID of the branch for the new employment period
+  
+  **Example**: `1`
+</ParamField>
+
+<ParamField body="start_date" type="string" required>
+  Start date for the new employment period
+  
+  **Format**: YYYY-MM-DD
+  
+  **Example**: `"2027-01-15"`
+</ParamField>
+
+### Behavior
+
+- Creates a new active employment period
+- Sets employee's `is_active` to `true`
+- Validates that employee doesn't already have an active period
+
+### Example
+
+```bash
+curl -X POST "https://api.sushigo.local/api/v1/employees/01JKXYZ1234567890ABCDEFGH/rehire" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "branch_id": 2,
+    "start_date": "2027-01-15"
+  }'
+```
+
+### Response
+
+Returns the updated employee object with the new active employment period.
+
+### Errors
+
+- **422**: Employee already has an active employment period
+- **422**: Employee is already active
+
+## Related Endpoints
+
+- [List Employees](/api/employees/list) - Retrieve all employees
+- [Create Employee](/api/employees/create) - Create a new employee
+- [Employee Wages](/api/employees/wages) - Manage wage history
+- [Employee Attendance](/api/employees/attendance) - Track attendance

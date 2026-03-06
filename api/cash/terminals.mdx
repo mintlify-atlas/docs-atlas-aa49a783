@@ -1,0 +1,376 @@
+---
+title: "Card Terminals"
+description: "Manage card payment terminals for CLIP, MercadoPago, and other providers"
+---
+
+## Overview
+
+Card terminals represent physical or virtual card payment devices. They are used to track card transactions in cash adjustments and expenses, with support for multiple providers like CLIP, MercadoPago, etc.
+
+---
+
+## Create Card Terminal
+
+```http
+POST /api/v1/cash-terminals
+```
+
+### Request Body
+
+<ParamField body="branch_id" type="integer" required>
+  Branch ID where the terminal is located
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Terminal name (max 255 characters)
+</ParamField>
+
+<ParamField body="provider" type="string" required>
+  Payment provider name (e.g., `CLIP`, `MERCADOPAGO`) - max 100 characters
+</ParamField>
+
+<ParamField body="account_ref" type="string">
+  Provider account reference (max 255 characters)
+</ParamField>
+
+<ParamField body="last_four" type="string">
+  Last 4 digits of terminal ID (exactly 4 numeric digits)
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata
+  
+  <Expandable title="properties">
+    <ResponseField name="serial" type="string">
+      Terminal serial number
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="integer">
+      Terminal ID
+    </ResponseField>
+    
+    <ResponseField name="branch_id" type="integer">
+      Branch ID
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Terminal name
+    </ResponseField>
+    
+    <ResponseField name="provider" type="string">
+      Payment provider
+    </ResponseField>
+    
+    <ResponseField name="account_ref" type="string">
+      Provider account reference
+    </ResponseField>
+    
+    <ResponseField name="last_four" type="string">
+      Last 4 digits
+    </ResponseField>
+    
+    <ResponseField name="is_active" type="boolean">
+      Active status
+    </ResponseField>
+    
+    <ResponseField name="meta" type="object">
+      Additional metadata
+    </ResponseField>
+    
+    <ResponseField name="branch" type="object">
+      Branch information
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/cash-terminals \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "branch_id": 1,
+    "name": "Terminal CLIP 1",
+    "provider": "CLIP",
+    "account_ref": "ACC-12345",
+    "last_four": "1234",
+    "is_active": true,
+    "meta": {
+      "serial": "SN123456"
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Cash terminal created successfully",
+  "data": {
+    "id": 1,
+    "branch_id": 1,
+    "name": "Terminal CLIP 1",
+    "provider": "CLIP",
+    "account_ref": "ACC-12345",
+    "last_four": "1234",
+    "is_active": true,
+    "meta": {
+      "serial": "SN123456"
+    },
+    "created_at": "2025-12-13T08:00:00+00:00",
+    "updated_at": "2025-12-13T08:00:00+00:00",
+    "branch": {
+      "id": 1,
+      "name": "Sucursal Centro"
+    }
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## List Card Terminals
+
+```http
+GET /api/v1/cash-terminals
+```
+
+### Query Parameters
+
+<ParamField query="branch_id" type="integer">
+  Filter by branch ID
+</ParamField>
+
+<ParamField query="provider" type="string">
+  Filter by payment provider
+</ParamField>
+
+<ParamField query="is_active" type="boolean">
+  Filter by active status
+</ParamField>
+
+<ParamField query="sort_by" type="string" default="name">
+  Sort field
+</ParamField>
+
+<ParamField query="sort_order" type="string" default="asc">
+  Sort order: `asc` or `desc`
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+Returns paginated list of card terminals.
+
+<RequestExample>
+```bash cURL
+curl https://api.sushigo.local/api/v1/cash-terminals?branch_id=1&is_active=true \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "current_page": 1,
+  "data": [
+    {
+      "id": 1,
+      "branch_id": 1,
+      "name": "Terminal CLIP 1",
+      "provider": "CLIP",
+      "account_ref": "ACC-12345",
+      "last_four": "1234",
+      "is_active": true,
+      "branch": {
+        "id": 1,
+        "name": "Sucursal Centro"
+      }
+    },
+    {
+      "id": 2,
+      "branch_id": 1,
+      "name": "Terminal MercadoPago",
+      "provider": "MERCADOPAGO",
+      "account_ref": null,
+      "last_four": "5678",
+      "is_active": true,
+      "branch": {
+        "id": 1,
+        "name": "Sucursal Centro"
+      }
+    }
+  ],
+  "per_page": 15,
+  "total": 2
+}
+```
+</ResponseExample>
+
+---
+
+## Get Card Terminal
+
+```http
+GET /api/v1/cash-terminals/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Card terminal ID
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  Terminal details with branch information
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl https://api.sushigo.local/api/v1/cash-terminals/1 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+---
+
+## Update Card Terminal
+
+```http
+PUT /api/v1/cash-terminals/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Card terminal ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="name" type="string">
+  Terminal name
+</ParamField>
+
+<ParamField body="provider" type="string">
+  Payment provider
+</ParamField>
+
+<ParamField body="account_ref" type="string">
+  Provider account reference
+</ParamField>
+
+<ParamField body="last_four" type="string">
+  Last 4 digits (exactly 4 numeric digits)
+</ParamField>
+
+<ParamField body="is_active" type="boolean">
+  Active status
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Updated terminal object
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X PUT https://api.sushigo.local/api/v1/cash-terminals/1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Terminal CLIP Principal",
+    "is_active": true
+  }'
+```
+</RequestExample>
+
+---
+
+## Delete Card Terminal
+
+<Warning>
+Cannot delete a terminal with existing transactions (adjustment lines or expenses). Set `is_active` to `false` instead.
+</Warning>
+
+```http
+DELETE /api/v1/cash-terminals/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Card terminal ID
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X DELETE https://api.sushigo.local/api/v1/cash-terminals/1 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Cash terminal deleted successfully"
+}
+```
+
+```json 422 Cannot Delete
+{
+  "message": "Cannot delete terminal with existing transactions"
+}
+```
+</ResponseExample>
+
+---
+
+## Common Providers
+
+<Note>
+The system supports any provider name, but these are commonly used:
+</Note>
+
+- **CLIP** - Popular Mexican card payment provider
+- **MERCADOPAGO** - Latin American payment platform
+- **SQUARE** - International POS and payment provider
+- **STP** - Sistema de Transferencias y Pagos (Mexico)
+- **STRIPE** - International payment processing
+
+The `last_four` field helps identify specific terminals when multiple devices from the same provider are used.

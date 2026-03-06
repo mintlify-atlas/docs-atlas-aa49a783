@@ -1,0 +1,122 @@
+---
+title: "Logout"
+api: "POST /api/v1/auth/logout"
+description: "Revoke the current access token and end the user session"
+---
+
+## Authentication
+
+**Required**: Bearer token in the `Authorization` header.
+
+```
+Authorization: Bearer {your_access_token}
+```
+
+## Request Body
+
+This endpoint does not require any request body parameters.
+
+## Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (200 for success)
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success message confirming the logout
+</ResponseField>
+
+<ResponseField name="meta" type="object" nullable>
+  Additional metadata (null for this endpoint)
+</ResponseField>
+
+## Success Response Example
+
+```json
+{
+  "status": 200,
+  "message": "Successfully logged out",
+  "meta": null
+}
+```
+
+## Error Responses
+
+<Expandable title="401 Unauthorized - Missing or Invalid Token">
+```json
+{
+  "message": "Unauthenticated."
+}
+```
+
+This error occurs when:
+- No `Authorization` header is provided
+- The token is invalid or malformed
+- The token has already been revoked
+</Expandable>
+
+<Expandable title="500 Internal Server Error">
+```json
+{
+  "status": 500,
+  "message": "An unexpected error occurred"
+}
+```
+</Expandable>
+
+## Code Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/auth/logout \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc..."
+```
+
+```javascript JavaScript
+const token = 'eyJ0eXAiOiJKV1QiLCJhbGc...'; // Your access token
+
+const response = await fetch('https://api.sushigo.local/api/v1/auth/logout', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const data = await response.json();
+console.log(data.message); // "Successfully logged out"
+
+// Clear the token from storage
+localStorage.removeItem('auth_token');
+```
+
+```php PHP
+<?php
+
+use Illuminate\Support\Facades\Http;
+
+$token = 'eyJ0eXAiOiJKV1QiLCJhbGc...'; // Your access token
+
+$response = Http::withToken($token)
+    ->post('https://api.sushigo.local/api/v1/auth/logout');
+
+$data = $response->json();
+echo $data['message']; // "Successfully logged out"
+
+// Clear the token from session or storage
+session()->forget('auth_token');
+```
+
+</CodeGroup>
+
+## Usage Notes
+
+- This endpoint revokes the current access token, making it invalid for future requests
+- After logout, the client should clear the stored token from memory/storage
+- The user will need to login again to obtain a new token
+- Revoking a token does not affect other tokens that may have been issued for the same user
+- If the token is already invalid or revoked, the endpoint returns a 401 error

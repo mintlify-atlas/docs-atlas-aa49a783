@@ -1,0 +1,655 @@
+---
+title: Code Conventions
+description: Git commit format, coding standards, and development workflows
+---
+
+## Overview
+
+SushiGo follows strict conventions to ensure code quality, consistency, and traceability. All developers must adhere to these standards.
+
+<Warning>
+  **Pull Request Requirement:** Reviewers must reject any PR that violates these conventions.
+</Warning>
+
+## Git Commit Messages
+
+Every commit **must** follow the mandatory emoji-based format for visual clarity and traceability.
+
+### Commit Format
+
+```
+:emoji [#issue] - short description :emoji
+
+Story: AP-NNN · <full story text from backlog.en.md>
+Refs:  RF-XX · <requirement text from spec.en.md>
+
+- :emoji Activity 1
+- :emoji Activity 2
+- :emoji Activity 3
+```
+
+### Rules (Mandatory)
+
+<Steps>
+  <Step title="Subject line format">
+    - **Format:** `emoji [#NNN] - description emoji`
+    - The dash (` - `) between issue number and description is **required**
+    - Issue number is always **3 digits zero-padded**: `#001`, `#030`, not `#1` or `#30`
+    - Description is **concise** (imperative mood), never ends with a period
+    - **Final ornamental emoji** on the subject line is required
+  </Step>
+
+  <Step title="Body with activities">
+    - Each bullet in the body **must start with an emoji**
+    - Plain `- text` without emoji is **not allowed**
+    - Activities describe what was done, not why (the subject line covers "why")
+  </Step>
+
+  <Step title="Traceability (optional)">
+    When the commit addresses a backlog story or functional requirement:
+    - Add `Story:` line with full text from `backlog.en.md`
+    - Add `Refs:` line with requirement description from `spec.en.md`
+    - Use **English** versions of stories/requirements
+    - Omit traceability for chores, refactors, or infrastructure work
+  </Step>
+</Steps>
+
+### Commit Type Emojis
+
+| Emoji | Type | Description |
+|-------|------|-------------|
+| ✨ | `feat` | New feature |
+| 🐛 | `fix` | Bug fix |
+| 📚 | `docs` | Documentation |
+| 🎨 | `style` | Formatting, no logic change |
+| 🔨 | `refactor` | Code restructure |
+| 🚀 | `perf` | Performance improvement |
+| ✅ | `test` | Adding/updating tests |
+| 🔧 | `chore` | Config, tooling, maintenance |
+
+### Correct Example
+
+```
+🔨 [#030] - Migrate API format from Model to JsonResource 🗂️
+
+Story: AP-005 · As an admin, I want consistent API responses, so that frontend integration is predictable.
+Refs:  RF-12 · All endpoints must return ResponseEntity envelope
+
+- 🗂️ Created BaseResource with envelope { data, status, meta }
+- 📦 Created AttendanceResource migrating 20 fields from toApiArray()
+- 👤 Created EmployeeResource + EmployeeSummaryResource
+- 🔁 Migrated 4 Attendance controllers and 7 Employee controllers
+- 🧹 Removed toApiArray() from both models
+- 🧪 Updated EmployeeModelTest
+```
+
+### Wrong Examples (Do Not Do This)
+
+```
+❌ 🔨 [#030] Migrate API format    ← Missing dash before description
+❌ 🔨 [#30] - Migrate API format   ← Issue number not zero-padded
+❌ 🔨 [#030] - Migrate API format  ← Missing final emoji
+
+🔨 [#030] - Migrate API format 🗂️
+
+- Create BaseResource             ← Missing emoji on bullet
+- Create AttendanceResource       ← Missing emoji on bullet
+```
+
+### Traceability Tags
+
+Include when the commit implements a backlog story or requirement:
+
+```
+Story: AP-016 · As an Admin, I want to create, list, view, update, and deactivate employees via API, to manage the workforce.
+Refs:  RF-01 · Register employees (general data)
+       RF-02 · Role: Manager / Cook / Kitchen Assistant / Delivery Driver
+```
+
+**Where to find:**
+- Story text: `doc/modules/<module>/<module>-backlog.en.md`
+- Requirement text: `doc/modules/<module>/<module>-spec.en.md`
+
+## DateTime Standard (Mandatory)
+
+**UTC everywhere. RFC 3339 in transport. Local only for display.**
+
+### Three Golden Rules
+
+| Rule | Description |
+|------|-------------|
+| **Storage = UTC** | Database always stores datetimes in UTC. `config/app.timezone = 'UTC'`. No exceptions. |
+| **Transport = ISO 8601 with offset** | API accepts/returns datetimes with explicit timezone offset (RFC 3339). Never naive. |
+| **Display = client responsibility** | Frontend converts UTC to user's local timezone. Server never formats for display. |
+
+### Backend: API Input Format
+
+Accept ISO 8601 / RFC 3339 with explicit timezone offset:
+
+```php
+// ✅ GOOD - Normalize to UTC
+$checkIn = Carbon::parse($data['check_in'])->utc();
+
+// ❌ BAD - Assumes timezone based on app config
+$checkIn = Carbon::parse($data['check_in']);
+```
+
+**Accepted formats:**
+
+```
+✅ 2026-02-23T09:05:30-06:00    (local time + offset)
+✅ 2026-02-23T15:05:30Z          (UTC with Z suffix)
+✅ 2026-02-23T15:05:30+00:00     (UTC with explicit offset)
+```
+
+### Backend: Validation Rules
+
+```php
+// ✅ GOOD - Accepts RFC 3339 with offset
+'check_in' => ['required', 'date'],
+
+// ❌ BAD - Rejects timezone offset
+'check_in' => ['required', 'date_format:Y-m-d\TH:i:s'],
+```
+
+### Backend: Response Format
+
+Always return ISO 8601 UTC:
+
+```php
+// ✅ GOOD - Returns UTC ISO 8601
+'check_in' => $attendance->check_in?->toIso8601String(),
+// Output: "2026-02-23T15:05:30+00:00"
+
+// ❌ BAD - Returns naive datetime
+'check_in' => $attendance->check_in?->format('Y-m-d H:i:s'),
+```
+
+### Frontend: Sending Datetimes
+
+Send browser's local time with timezone offset:
+
+```typescript
+// ✅ GOOD - ISO 8601 with offset
+function nowIso(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const offset = -d.getTimezoneOffset()
+  const sign = offset >= 0 ? '+' : '-'
+  const absOff = Math.abs(offset)
+  const oh = pad(Math.floor(absOff / 60))
+  const om = pad(absOff % 60)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${oh}:${om}`
+}
+// Output: "2026-02-23T09:05:30-06:00"
+```
+
+### Frontend: Displaying Datetimes
+
+Parse UTC from API and display in local timezone:
+
+```typescript
+// ✅ GOOD - Converts UTC → local for display
+export function formatTime(iso: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso) // Parses UTC, getHours() returns local
+  if (isNaN(d.getTime())) return '—'
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
+// ❌ BAD - Extracts time from UTC string (shows UTC, not local)
+const timePart = iso.split('T')[1]?.slice(0, 5)
+```
+
+### Seeders: Timezone Conversion
+
+```php
+private const TIMEZONE = 'America/Mexico_City';
+private const SHIFT_START = '13:00:00'; // 1 PM CDT → 19:00 UTC
+
+private function toUtcTime(string $localTime): string
+{
+    return Carbon::parse($localTime, self::TIMEZONE)
+        ->utc()
+        ->format('H:i:s');
+}
+```
+
+## PHP Class Names (Mandatory)
+
+**Always import classes at the top. Never use inline FQCNs (fully qualified class names).**
+
+```php
+// ✅ CORRECT — Import at top, use short name
+use Carbon\Carbon;
+use Spatie\Permission\PermissionRegistrar;
+use Illuminate\Database\UniqueConstraintViolationException;
+
+Carbon::parse($date);
+app()[PermissionRegistrar::class]->forgetCachedPermissions();
+$this->expectException(UniqueConstraintViolationException::class);
+
+// ❌ WRONG — Inline FQCN with backslash
+\Carbon\Carbon::parse($date);
+app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+$this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+```
+
+**This rule applies everywhere:**
+- Return types
+- Parameter types
+- `::class` references
+- `instanceof` checks
+- `expectException()` calls
+
+<Note>
+  PHP built-ins (e.g., `BackedEnum`) in the global namespace need no `use` statement and no `\` prefix.
+</Note>
+
+## Form Convention (Mandatory)
+
+**Every form in the webapp MUST use `react-hook-form` + `@hookform/resolvers` + `zod`.**
+
+### Standard Form Pattern
+
+```tsx
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+
+const mySchema = z.object({
+  name: z.string().min(1, 'El nombre es requerido'),
+  date: z.string().min(1, 'La fecha es requerida'),
+})
+
+type MyFormValues = z.infer<typeof mySchema>
+
+function MyForm({ onSubmit }: { onSubmit: (v: MyFormValues) => void }) {
+  const { register, handleSubmit, formState: { errors } } = useForm<MyFormValues>({
+    resolver: zodResolver(mySchema),
+    defaultValues: { name: '', date: '' },
+  })
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <input {...register('name')} />
+      {errors.name && <p>{errors.name.message}</p>}
+      
+      <button type="submit">Submit</button>
+    </form>
+  )
+}
+```
+
+### Rules
+
+- Schema defined with `zod` at the top of the file (or separate `*.schema.ts`)
+- Type inferred via `z.infer<typeof schema>` — never hand-write form value types
+- **No manual `useState`** for form fields or validation errors
+- Validation errors displayed inline below each field
+- `onSubmit` callback receives typed `FormValues` (already validated by zod)
+- Forms extracted as standalone components when they have 3+ fields
+
+<Warning>
+  **PR Requirement:** Reviewers must reject form PRs that use raw `useState` for field management instead of `react-hook-form`.
+</Warning>
+
+## Custom Hook Convention (Mandatory)
+
+**Any component with 3+ `useState` calls, API mutations, or non-trivial handlers MUST extract its logic into a custom `use<ComponentName>` hook.**
+
+### Pattern
+
+<CodeGroup>
+```typescript use-my-form.ts
+// Logic only, no JSX
+export function useMyForm() {
+  const [showConfirm, setShowConfirm] = useState(false)
+  const mutation = useCreateSomething()
+
+  const handleSubmit = async (values: FormValues) => {
+    await mutation.mutateAsync(values)
+  }
+
+  return { 
+    showConfirm, 
+    setShowConfirm, 
+    handleSubmit, 
+    isPending: mutation.isPending 
+  }
+}
+```
+
+```tsx my-form.tsx
+// View only, no business logic
+export function MyForm() {
+  const { showConfirm, setShowConfirm, handleSubmit, isPending } = useMyForm()
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* JSX only */}
+    </form>
+  )
+}
+```
+</CodeGroup>
+
+### Rules
+
+| Concern | Owned By |
+|---------|----------|
+| **Hook** | State, queries, mutations, handlers, derived booleans |
+| **Component** | JSX structure, className, labels — pure presentation |
+
+- **File naming:** `use-<component-name>.ts` (kebab-case, no JSX)
+- Hook lives **alongside** the component (same directory)
+- Types exported from hook file; component re-exports if consumers need them
+- Hooks that resolve auth-store values (branch, isAdmin) do so internally — don't thread as props
+
+<Warning>
+  **PR Requirement:** Reviewers must reject PRs where logic and JSX are mixed in the same component when 3+ `useState` calls or API mutations exist.
+</Warning>
+
+## API Code Style
+
+### Strong Typing
+
+**Always use PHP 8.2 strong typing. Avoid redundant PHPDoc.**
+
+```php
+// ❌ BAD - Redundant PHPDoc
+/**
+ * Get the user's name.
+ * @return string
+ */
+public function getName(): string
+{
+    return $this->name;
+}
+
+// ✅ GOOD - Strong typing without PHPDoc
+public function getName(): string
+{
+    return $this->name;
+}
+
+// ✅ GOOD - PHPDoc adds value
+/**
+ * Calculate discount based on loyalty tier.
+ * Tiers: Bronze (5%), Silver (10%), Gold (15%)
+ */
+public function calculateDiscount(User $user): float
+{
+    // ...
+}
+```
+
+### Seeders
+
+Use appropriate base classes:
+
+| Base Class | Purpose | Auto-locks | Use Case |
+|------------|---------|------------|----------|
+| `LockedSeeder` | Critical system data | ✅ Yes | Roles, permissions, config |
+| `OnceSeeder` | Initial data | ❌ No | Users, categories |
+| `RepeatableSeeder` | Dynamic data | ❌ No | Stock, cache, sync |
+
+```php
+// ✅ GOOD - Use updateOrCreate to avoid duplicates
+class RoleSeeder extends LockedSeeder
+{
+    public function run(): void
+    {
+        Role::updateOrCreate(
+            ['name' => 'admin', 'guard_name' => 'api'],
+            ['description' => 'Administrator']
+        );
+    }
+}
+
+// ❌ BAD - Hardcoded data, no deduplication
+class UserSeeder extends Seeder
+{
+    public function run(): void
+    {
+        User::create([
+            'email' => 'admin@example.com',
+            'password' => 'password123', // ❌ Never hardcode passwords
+        ]);
+    }
+}
+```
+
+**Configuration:**
+
+Seeder data belongs in `config/seeders.php`, not hardcoded in seeder classes.
+
+## Frontend Code Style
+
+### File Structure
+
+```
+src/
+├── pages/              # File-based routing (TanStack Router)
+│   ├── __root.tsx      # Root layout
+│   ├── index.tsx       # Route "/"
+│   └── employees.tsx   # Route "/employees"
+├── components/
+│   ├── ui/             # Reusable UI components
+│   └── layout/         # Layout components
+├── services/           # API functions + TanStack Query hooks
+├── stores/             # Zustand stores (auth.store.ts)
+└── lib/
+    └── api-client.ts   # Axios instance with auth interceptor
+```
+
+### Routing
+
+Each page exports its own route:
+
+```tsx
+// src/pages/employees.tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { PageContainer } from '@/components/ui/page-container'
+
+// Export route configuration
+export const Route = createFileRoute('/employees')({
+  component: EmployeesPage,
+})
+
+// Define page component
+export function EmployeesPage() {
+  return (
+    <PageContainer>
+      <h1>Employees</h1>
+    </PageContainer>
+  )
+}
+```
+
+TanStack Router auto-generates `routeTree.gen.ts` from files in `src/pages/`.
+
+### Naming Conventions
+
+| Type | Convention | Example |
+|------|------------|---------|
+| **Components** | PascalCase | `EmployeeForm`, `PageHeader` |
+| **Files** | Match component name | `employee-form.tsx`, `page-header.tsx` |
+| **Hooks** | `use` prefix | `useEmployeeForm`, `useAuth` |
+| **Pages** | PascalCase with `Page` suffix | `EmployeesPage`, `DashboardPage` |
+| **Imports** | `@/` path alias | `import { Button } from '@/components/ui/button'` |
+
+## Task Tracking Convention
+
+Tasks live in `doc/tasks/` with this structure:
+
+```
+doc/tasks/
+├── yyyy-mm/          ← Completed tasks, one folder per month
+│   └── NNN-task-name.md
+└── backlog/
+    └── <category>/   ← Pending tasks grouped by category
+        └── NNN-task-name.md
+```
+
+### Rules
+
+<Steps>
+  <Step title="Task completion">
+    When a task is completed, **move** its `.md` file from `backlog/<category>/` to `doc/tasks/yyyy-mm/`
+    
+    where `yyyy-mm` is the **current month** (e.g., `2026-03`)
+  </Step>
+
+  <Step title="Monthly folder">
+    - Never create a `done/` folder
+    - Completed tasks go directly into the monthly folder
+    - The monthly folder is **flat** (no subfolders by category)
+    - Create `yyyy-mm` folder if it doesn't exist yet
+  </Step>
+</Steps>
+
+### Task File Format
+
+```markdown
+# 🛡️ Implement authentication middleware
+
+## 📖 Story
+As a developer, I need to add authentication middleware so that only authorized users can access protected routes.
+
+---
+
+## ✅ Technical Tasks
+- [x] 🔧 Create middleware file
+- [ ] 📝 Write unit tests
+- [ ] 📂 Register middleware in project config
+
+---
+
+## ⏱️ Time
+### 📊 Estimates
+- **Optimistic:** `2h`
+- **Pessimistic:** `5h`
+- **Tracked:** `3h 30m`
+
+### 📅 Sessions
+```json
+[
+  { "date": "2026-03-06", "start": "10:00", "end": "11:30" },
+  { "date": "2026-03-06", "start": "14:00", "end": "16:00" }
+]
+```
+```
+
+## Anti-Patterns
+
+### Avoid
+
+```php
+// ❌ Inline FQCN
+\Carbon\Carbon::parse($date);
+
+// ❌ Redundant PHPDoc
+/** @var string */
+protected $name;
+
+// ❌ Business logic in controllers
+public function store(Request $request)
+{
+    $user->calculateDiscount(); // ❌
+    $user->save();
+}
+
+// ❌ Hardcoded data
+$password = 'admin123'; // ❌
+```
+
+```tsx
+// ❌ Manual form state instead of react-hook-form
+const [name, setName] = useState('')
+const [email, setEmail] = useState('')
+const [errors, setErrors] = useState({})
+
+// ❌ Logic mixed with JSX in component
+export function EmployeeForm() {
+  const [loading, setLoading] = useState(false)
+  const mutation = useCreateEmployee()
+  
+  const handleSubmit = async (e) => {
+    setLoading(true)
+    // ... 50 lines of logic
+  }
+  
+  return <form>{/* JSX */}</form>
+}
+```
+
+### Prefer
+
+```php
+// ✅ Import at top
+use Carbon\Carbon;
+
+// ✅ Strong typing
+protected string $name;
+
+// ✅ Logic in Services/Actions
+$this->userService->createUser($request->validated());
+
+// ✅ Configuration in files
+config('seeders.development_users')
+```
+
+```tsx
+// ✅ react-hook-form + zod
+const schema = z.object({ name: z.string().min(1) })
+const { register, handleSubmit } = useForm({ resolver: zodResolver(schema) })
+
+// ✅ Logic in custom hook
+export function EmployeeForm() {
+  const { handleSubmit, isPending } = useEmployeeForm()
+  return <form onSubmit={handleSubmit}>{/* JSX */}</form>
+}
+```
+
+## Checklist for New Features
+
+Before submitting a PR:
+
+- [ ] Remove unnecessary PHPDoc (use strong typing)
+- [ ] Remove superfluous comments
+- [ ] Use `updateOrCreate` in seeders to avoid duplicates
+- [ ] Configure seeders with appropriate base class
+- [ ] Use `react-hook-form` + `zod` for all forms
+- [ ] Extract logic into custom hooks if 3+ `useState` or mutations
+- [ ] Follow commit message format with emojis
+- [ ] Add traceability tags for story/requirement commits
+- [ ] Use UTC for all datetime storage
+- [ ] Import PHP classes at top (no inline FQCNs)
+- [ ] Write tests for new features
+
+## References
+
+- [Conventional Commits](https://www.conventionalcommits.org)
+- [Laravel Best Practices](https://laravel.com/docs)
+- [TanStack Router](https://tanstack.com/router)
+- [React Hook Form](https://react-hook-form.com)
+- [Zod](https://zod.dev)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Setup" icon="gear" href="/development/environment-setup">
+    Set up your development environment
+  </Card>
+  
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Run backend, frontend, and E2E tests
+  </Card>
+  
+  <Card title="Docker Compose" icon="docker" href="/development/docker-compose">
+    Understand the container architecture
+  </Card>
+</CardGroup>

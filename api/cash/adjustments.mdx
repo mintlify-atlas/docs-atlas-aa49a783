@@ -1,0 +1,481 @@
+---
+title: "Cash Adjustments"
+description: "Record income and expense adjustments with multiple tender types (cash, card, transfer)"
+---
+
+## Overview
+
+Cash adjustments represent income (INFLOW) or expense (OUTFLOW) transactions split by tender type. Each adjustment can have multiple lines for CASH, CARD, and TRANSFER payments. Adjustments start as DRAFT and must be posted to affect session balances.
+
+---
+
+## Create Cash Adjustment
+
+```http
+POST /api/v1/cash-adjustments
+```
+
+### Request Body
+
+<ParamField body="cash_session_id" type="integer" required>
+  Cash session ID
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Adjustment type: `EXTERNAL_IMPORT` (from POS/external system) or `CORRECTION` (manual correction)
+</ParamField>
+
+<ParamField body="direction" type="string" required>
+  Cash flow direction: `INFLOW` (income) or `OUTFLOW` (expense)
+</ParamField>
+
+<ParamField body="source_system" type="string">
+  Source system name (e.g., `POS`, `ADMIN`) - max 100 characters
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Adjustment notes (max 1000 characters)
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata
+  
+  <Expandable title="properties">
+    <ResponseField name="import_id" type="string">
+      External system import ID
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="lines" type="array" required>
+  Adjustment lines by tender type (minimum 1 line)
+  
+  <Expandable title="line object">
+    <ParamField body="tender_type" type="string" required>
+      Tender type: `CASH`, `CARD`, or `TRANSFER`
+    </ParamField>
+    
+    <ParamField body="amount" type="number" required>
+      Line amount (0.01 to 999999.99)
+    </ParamField>
+    
+    <ParamField body="currency" type="string" default="MXN">
+      Currency code (3 characters, e.g., `MXN`, `USD`)
+    </ParamField>
+    
+    <ParamField body="card_terminal_id" type="integer">
+      Terminal ID (required when `tender_type` is `CARD`)
+    </ParamField>
+    
+    <ParamField body="bank_account_id" type="integer">
+      Bank account ID (required when `tender_type` is `TRANSFER`)
+    </ParamField>
+    
+    <ParamField body="reference" type="string">
+      Transaction reference (max 255 characters)
+    </ParamField>
+    
+    <ParamField body="meta" type="object">
+      Line-specific metadata
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="integer">
+      Adjustment ID
+    </ResponseField>
+    
+    <ResponseField name="cash_session_id" type="integer">
+      Session ID
+    </ResponseField>
+    
+    <ResponseField name="source_system" type="string">
+      Source system name
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Adjustment type
+    </ResponseField>
+    
+    <ResponseField name="direction" type="string">
+      Cash flow direction
+    </ResponseField>
+    
+    <ResponseField name="notes" type="string">
+      Adjustment notes
+    </ResponseField>
+    
+    <ResponseField name="posted_by" type="integer">
+      User ID who posted (null if draft)
+    </ResponseField>
+    
+    <ResponseField name="posted_at" type="string">
+      Posted timestamp (null if draft)
+    </ResponseField>
+    
+    <ResponseField name="meta" type="object">
+      Additional metadata
+    </ResponseField>
+    
+    <ResponseField name="cash_session" type="object">
+      Session information
+    </ResponseField>
+    
+    <ResponseField name="lines" type="array">
+      Adjustment lines
+      <Expandable title="line object">
+        <ResponseField name="id" type="integer">
+          Line ID
+        </ResponseField>
+        <ResponseField name="tender_type" type="string">
+          Tender type
+        </ResponseField>
+        <ResponseField name="amount" type="string">
+          Amount as decimal string
+        </ResponseField>
+        <ResponseField name="currency" type="string">
+          Currency code
+        </ResponseField>
+        <ResponseField name="card_terminal_id" type="integer">
+          Terminal ID (for CARD)
+        </ResponseField>
+        <ResponseField name="bank_account_id" type="integer">
+          Bank account ID (for TRANSFER)
+        </ResponseField>
+        <ResponseField name="reference" type="string">
+          Transaction reference
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/cash-adjustments \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cash_session_id": 15,
+    "type": "EXTERNAL_IMPORT",
+    "direction": "INFLOW",
+    "source_system": "POS",
+    "notes": "Daily sales import",
+    "lines": [
+      {
+        "tender_type": "CASH",
+        "amount": 500.00,
+        "currency": "MXN"
+      },
+      {
+        "tender_type": "CARD",
+        "amount": 750.50,
+        "currency": "MXN",
+        "card_terminal_id": 1,
+        "reference": "TXN-12345"
+      },
+      {
+        "tender_type": "TRANSFER",
+        "amount": 100.00,
+        "currency": "MXN",
+        "bank_account_id": 1,
+        "reference": "SPEI-67890"
+      }
+    ]
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Adjustment created successfully",
+  "data": {
+    "id": 42,
+    "cash_session_id": 15,
+    "source_system": "POS",
+    "type": "EXTERNAL_IMPORT",
+    "direction": "INFLOW",
+    "notes": "Daily sales import",
+    "posted_by": null,
+    "posted_at": null,
+    "meta": null,
+    "created_at": "2025-12-13T18:00:00+00:00",
+    "updated_at": "2025-12-13T18:00:00+00:00",
+    "cash_session": {
+      "id": 15,
+      "operating_date": "2025-12-13"
+    },
+    "lines": [
+      {
+        "id": 101,
+        "cash_adjustment_id": 42,
+        "tender_type": "CASH",
+        "amount": "500.0000",
+        "currency": "MXN",
+        "card_terminal_id": null,
+        "bank_account_id": null,
+        "reference": null,
+        "created_at": "2025-12-13T18:00:00+00:00"
+      },
+      {
+        "id": 102,
+        "cash_adjustment_id": 42,
+        "tender_type": "CARD",
+        "amount": "750.5000",
+        "currency": "MXN",
+        "card_terminal_id": 1,
+        "bank_account_id": null,
+        "reference": "TXN-12345",
+        "created_at": "2025-12-13T18:00:00+00:00"
+      },
+      {
+        "id": 103,
+        "cash_adjustment_id": 42,
+        "tender_type": "TRANSFER",
+        "amount": "100.0000",
+        "currency": "MXN",
+        "card_terminal_id": null,
+        "bank_account_id": 1,
+        "reference": "SPEI-67890",
+        "created_at": "2025-12-13T18:00:00+00:00"
+      }
+    ]
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## List Cash Adjustments
+
+```http
+GET /api/v1/cash-adjustments
+```
+
+### Query Parameters
+
+<ParamField query="cash_session_id" type="integer">
+  Filter by cash session ID
+</ParamField>
+
+<ParamField query="type" type="string">
+  Filter by adjustment type: `EXTERNAL_IMPORT` or `CORRECTION`
+</ParamField>
+
+<ParamField query="direction" type="string">
+  Filter by direction: `INFLOW` or `OUTFLOW`
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by status: `POSTED` or `DRAFT`
+</ParamField>
+
+<ParamField query="sort_by" type="string" default="created_at">
+  Sort field
+</ParamField>
+
+<ParamField query="sort_order" type="string" default="desc">
+  Sort order: `asc` or `desc`
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+Returns paginated list of adjustments with lines, session, and posted user information.
+
+<RequestExample>
+```bash cURL
+curl https://api.sushigo.local/api/v1/cash-adjustments?cash_session_id=15&status=DRAFT \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+---
+
+## Get Cash Adjustment
+
+```http
+GET /api/v1/cash-adjustments/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash adjustment ID
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  Adjustment details with all lines, session, and posted user information
+</ResponseField>
+
+---
+
+## Post Cash Adjustment
+
+<Note>
+Finalizes the adjustment by marking it as posted. Once posted, the adjustment affects the session balance calculation and cannot be modified or deleted.
+</Note>
+
+```http
+POST /api/v1/cash-adjustments/{id}/post
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash adjustment ID
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Posted adjustment with `posted_at` timestamp and `posted_by` user
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/cash-adjustments/42/post \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Adjustment posted successfully",
+  "data": {
+    "id": 42,
+    "cash_session_id": 15,
+    "type": "EXTERNAL_IMPORT",
+    "direction": "INFLOW",
+    "posted_by": 5,
+    "posted_at": "2025-12-13T19:00:00+00:00",
+    "lines": [...],
+    "posted_by": {
+      "id": 5,
+      "name": "Juan Pérez"
+    }
+  }
+}
+```
+
+```json 422 Already Posted
+{
+  "message": "Adjustment already posted"
+}
+```
+</ResponseExample>
+
+---
+
+## Delete Cash Adjustment
+
+<Warning>
+Only DRAFT adjustments can be deleted. Posted adjustments are immutable.
+</Warning>
+
+```http
+DELETE /api/v1/cash-adjustments/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cash adjustment ID
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X DELETE https://api.sushigo.local/api/v1/cash-adjustments/42 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Adjustment deleted successfully"
+}
+```
+
+```json 422 Cannot Delete Posted
+{
+  "message": "Cannot delete posted adjustment"
+}
+```
+</ResponseExample>
+
+---
+
+## Adjustment Types
+
+<Tabs>
+  <Tab title="EXTERNAL_IMPORT">
+    Used for importing sales or transactions from external systems (POS, e-commerce platforms). This is the most common type for daily sales reconciliation.
+  </Tab>
+  
+  <Tab title="CORRECTION">
+    Manual corrections for discrepancies, errors, or adjustments that need to be made outside of normal imports.
+  </Tab>
+</Tabs>
+
+---
+
+## Tender Type Rules
+
+<Note>
+Each tender type has specific requirements:
+</Note>
+
+- **CASH**: No additional fields required. Amount goes directly into cash drawer.
+- **CARD**: Requires `card_terminal_id` to track which terminal processed the transaction.
+- **TRANSFER**: Requires `bank_account_id` to track which bank account received the funds.
+
+All tender types can optionally include a `reference` field for external transaction IDs or receipt numbers.
+
+---
+
+## Workflow Example
+
+<Steps>
+  <Step title="Create Adjustment">
+    Create adjustment with multiple tender type lines (DRAFT status)
+  </Step>
+  
+  <Step title="Review">
+    Review line items, verify amounts against external records
+  </Step>
+  
+  <Step title="Post Adjustment">
+    Post adjustment to finalize and include in session balance
+  </Step>
+  
+  <Step title="Session Closing">
+    When all adjustments are posted, close the cash session
+  </Step>
+</Steps>

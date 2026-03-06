@@ -1,0 +1,435 @@
+---
+title: "Bank Accounts"
+description: "Manage bank accounts for tracking transfer payments and deposits"
+---
+
+## Overview
+
+Bank accounts represent the branch's bank accounts used for receiving transfer payments in cash adjustments and expenses. Account numbers and CLABE are stored in masked format for security.
+
+---
+
+## Create Bank Account
+
+```http
+POST /api/v1/bank-accounts
+```
+
+### Request Body
+
+<ParamField body="branch_id" type="integer" required>
+  Branch ID that owns the account
+</ParamField>
+
+<ParamField body="alias" type="string" required>
+  Account alias/nickname (max 255 characters, e.g., "Cuenta BBVA Principal")
+</ParamField>
+
+<ParamField body="bank_name" type="string" required>
+  Bank name (max 255 characters, e.g., "BBVA", "Santander")
+</ParamField>
+
+<ParamField body="account_number_masked" type="string" required>
+  Masked account number (max 50 characters, e.g., "****1234")
+</ParamField>
+
+<ParamField body="clabe_masked" type="string">
+  Masked CLABE interbancaria (max 22 characters, e.g., "012345************")
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata
+  
+  <Expandable title="properties">
+    <ResponseField name="currency" type="string">
+      Account currency (e.g., "MXN", "USD")
+    </ResponseField>
+    <ResponseField name="account_type" type="string">
+      Account type (e.g., "CHECKING", "SAVINGS")
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="properties">
+    <ResponseField name="id" type="integer">
+      Bank account ID
+    </ResponseField>
+    
+    <ResponseField name="branch_id" type="integer">
+      Branch ID
+    </ResponseField>
+    
+    <ResponseField name="alias" type="string">
+      Account alias
+    </ResponseField>
+    
+    <ResponseField name="bank_name" type="string">
+      Bank name
+    </ResponseField>
+    
+    <ResponseField name="account_number_masked" type="string">
+      Masked account number
+    </ResponseField>
+    
+    <ResponseField name="clabe_masked" type="string">
+      Masked CLABE
+    </ResponseField>
+    
+    <ResponseField name="is_active" type="boolean">
+      Active status
+    </ResponseField>
+    
+    <ResponseField name="meta" type="object">
+      Additional metadata
+    </ResponseField>
+    
+    <ResponseField name="branch" type="object">
+      Branch information
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X POST https://api.sushigo.local/api/v1/bank-accounts \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "branch_id": 1,
+    "alias": "Cuenta BBVA Principal",
+    "bank_name": "BBVA",
+    "account_number_masked": "****1234",
+    "clabe_masked": "012345************",
+    "is_active": true,
+    "meta": {
+      "currency": "MXN",
+      "account_type": "CHECKING"
+    }
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Bank account created successfully",
+  "data": {
+    "id": 1,
+    "branch_id": 1,
+    "alias": "Cuenta BBVA Principal",
+    "bank_name": "BBVA",
+    "account_number_masked": "****1234",
+    "clabe_masked": "012345************",
+    "is_active": true,
+    "meta": {
+      "currency": "MXN",
+      "account_type": "CHECKING"
+    },
+    "created_at": "2025-12-13T08:00:00+00:00",
+    "updated_at": "2025-12-13T08:00:00+00:00",
+    "branch": {
+      "id": 1,
+      "name": "Sucursal Centro"
+    }
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## List Bank Accounts
+
+```http
+GET /api/v1/bank-accounts
+```
+
+### Query Parameters
+
+<ParamField query="branch_id" type="integer">
+  Filter by branch ID
+</ParamField>
+
+<ParamField query="is_active" type="boolean">
+  Filter by active status
+</ParamField>
+
+<ParamField query="sort_by" type="string" default="alias">
+  Sort field
+</ParamField>
+
+<ParamField query="sort_order" type="string" default="asc">
+  Sort order: `asc` or `desc`
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+Returns paginated list of bank accounts with branch information.
+
+<RequestExample>
+```bash cURL
+curl https://api.sushigo.local/api/v1/bank-accounts?branch_id=1&is_active=true \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "current_page": 1,
+  "data": [
+    {
+      "id": 1,
+      "branch_id": 1,
+      "alias": "Cuenta BBVA Principal",
+      "bank_name": "BBVA",
+      "account_number_masked": "****1234",
+      "clabe_masked": "012345************",
+      "is_active": true,
+      "branch": {
+        "id": 1,
+        "name": "Sucursal Centro"
+      }
+    },
+    {
+      "id": 2,
+      "branch_id": 1,
+      "alias": "Cuenta Santander Secundaria",
+      "bank_name": "Santander",
+      "account_number_masked": "****5678",
+      "clabe_masked": null,
+      "is_active": true,
+      "branch": {
+        "id": 1,
+        "name": "Sucursal Centro"
+      }
+    }
+  ],
+  "per_page": 15,
+  "total": 2
+}
+```
+</ResponseExample>
+
+---
+
+## Get Bank Account
+
+```http
+GET /api/v1/bank-accounts/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Bank account ID
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  Bank account details with branch information
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl https://api.sushigo.local/api/v1/bank-accounts/1 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+---
+
+## Update Bank Account
+
+```http
+PUT /api/v1/bank-accounts/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Bank account ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="alias" type="string">
+  Account alias
+</ParamField>
+
+<ParamField body="bank_name" type="string">
+  Bank name
+</ParamField>
+
+<ParamField body="account_number_masked" type="string">
+  Masked account number
+</ParamField>
+
+<ParamField body="clabe_masked" type="string">
+  Masked CLABE
+</ParamField>
+
+<ParamField body="is_active" type="boolean">
+  Active status
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Additional metadata
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Updated bank account object
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X PUT https://api.sushigo.local/api/v1/bank-accounts/1 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alias": "Cuenta BBVA Principal - Actualizada",
+    "is_active": true
+  }'
+```
+</RequestExample>
+
+---
+
+## Delete Bank Account
+
+<Warning>
+Cannot delete a bank account with existing transactions (adjustment lines or expenses). Set `is_active` to `false` instead.
+</Warning>
+
+```http
+DELETE /api/v1/bank-accounts/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Bank account ID
+</ParamField>
+
+### Response
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X DELETE https://api.sushigo.local/api/v1/bank-accounts/1 \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "message": "Bank account deleted successfully"
+}
+```
+
+```json 422 Cannot Delete
+{
+  "message": "Cannot delete bank account with existing transactions"
+}
+```
+</ResponseExample>
+
+---
+
+## Security Best Practices
+
+<Note>
+Always mask sensitive account information:
+</Note>
+
+### Account Number Masking
+
+Only store last 4 digits visible:
+- **Good**: `****1234` or `••••1234`
+- **Bad**: `1234567890` (full number)
+
+### CLABE Masking
+
+Mexico's 18-digit CLABE interbancaria:
+- **Good**: `012345************` (first 6 digits + asterisks)
+- **Bad**: `012345678901234567` (full CLABE)
+
+The masked format provides enough information to identify accounts while protecting sensitive data.
+
+---
+
+## Common Mexican Banks
+
+<CardGroup cols={2}>
+  <Card title="BBVA México">
+    Banco Bilbao Vizcaya Argentaria
+  </Card>
+  
+  <Card title="Santander">
+    Banco Santander México
+  </Card>
+  
+  <Card title="Banorte">
+    Banco del Norte
+  </Card>
+  
+  <Card title="HSBC">
+    HSBC México
+  </Card>
+  
+  <Card title="Citibanamex">
+    Citibank Banamex
+  </Card>
+  
+  <Card title="Scotiabank">
+    Scotiabank Inverlat
+  </Card>
+</CardGroup>
+
+---
+
+## Usage in Transfer Payments
+
+Bank accounts are referenced when recording TRANSFER tender type in:
+
+1. **Cash Adjustments**: When customers pay via bank transfer (SPEI, wire transfer)
+2. **Cash Expenses**: When paying vendors via bank transfer
+
+Example adjustment line with bank account:
+
+```json
+{
+  "tender_type": "TRANSFER",
+  "amount": 1000.00,
+  "bank_account_id": 1,
+  "reference": "SPEI-1234567890"
+}
+```
+
+The `reference` field typically contains the SPEI tracking number or wire transfer confirmation.

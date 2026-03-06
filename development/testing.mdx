@@ -1,0 +1,705 @@
+---
+title: Testing
+description: Running backend, frontend, and end-to-end tests
+---
+
+## Overview
+
+SushiGo employs a comprehensive testing strategy across three layers:
+
+- **Backend (API)**: PHPUnit for unit and feature tests
+- **Frontend (Webapp)**: Vitest for component and unit tests
+- **E2E**: Cypress for full-stack integration tests
+
+## Backend Testing (PHPUnit)
+
+The Laravel API uses PHPUnit with a dedicated test database and transactional rollback for isolation.
+
+### Test Configuration
+
+Configuration is defined in `code/api/phpunit.xml`:
+
+```xml
+<phpunit>
+  <testsuites>
+    <testsuite name="Unit">
+      <directory>tests/Unit</directory>
+    </testsuite>
+    <testsuite name="Feature">
+      <directory>tests/Feature</directory>
+    </testsuite>
+  </testsuites>
+  <php>
+    <env name="APP_ENV" value="testing"/>
+    <env name="DB_CONNECTION" value="pgsql"/>
+    <env name="DB_DATABASE" value="mydb_test"/>
+    <env name="CACHE_STORE" value="array"/>
+    <env name="QUEUE_CONNECTION" value="sync"/>
+  </php>
+</phpunit>
+```
+
+<Note>
+  Tests use a separate `mydb_test` database created during container initialization.
+</Note>
+
+### Running API Tests
+
+<CodeGroup>
+```bash All Tests
+# Inside the container (recommended)
+docker exec -it dev_container bash -c "cd /app/code/api && php artisan test"
+
+# Or from VS Code terminal (already in container)
+cd /app/code/api
+php artisan test
+```
+
+```bash Specific Test Suite
+# Run only unit tests
+php artisan test --testsuite=Unit
+
+# Run only feature tests
+php artisan test --testsuite=Feature
+```
+
+```bash Specific Test File
+# Run a single test file
+php artisan test tests/Feature/EmployeeTest.php
+
+# Filter by test name
+php artisan test --filter=EmployeeTest
+php artisan test --filter=testCreateEmployee
+```
+
+```bash With Coverage
+# Generate coverage report
+php artisan test --coverage
+
+# Coverage with minimum threshold
+php artisan test --coverage --min=80
+```
+</CodeGroup>
+
+### Test Structure
+
+```
+code/api/tests/
+├── Unit/               # Isolated unit tests (models, services)
+│   ├── Models/
+│   │   └── EmployeeTest.php
+│   └── Services/
+│       └── WageCalculatorTest.php
+└── Feature/            # Integration tests (controllers, API endpoints)
+    ├── Auth/
+    │   └── LoginTest.php
+    ├── Employees/
+    │   ├── CreateEmployeeTest.php
+    │   └── ListEmployeesTest.php
+    └── Inventory/
+        └── StockMovementTest.php
+```
+
+### Writing Backend Tests
+
+#### Feature Test Example
+
+```php
+<?php
+
+namespace Tests\Feature\Employees;
+
+use Tests\TestCase;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+class CreateEmployeeTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_admin_can_create_employee(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+
+        $response = $this->actingAs($admin, 'api')
+            ->postJson('/api/v1/employees', [
+                'name' => 'John Doe',
+                'email' => 'john@example.com',
+                'role' => 'cook',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonStructure([
+                'data' => ['id', 'name', 'email', 'role'],
+            ]);
+
+        $this->assertDatabaseHas('employees', [
+            'email' => 'john@example.com',
+        ]);
+    }
+}
+```
+
+#### Unit Test Example
+
+```php
+<?php
+
+namespace Tests\Unit\Services;
+
+use Tests\TestCase;
+use App\Services\WageCalculator;
+
+class WageCalculatorTest extends TestCase
+{
+    public function test_calculates_monthly_wage_correctly(): void
+    {
+        $calculator = new WageCalculator();
+        
+        $result = $calculator->calculateMonthly(
+            dailyWage: 200,
+            daysWorked: 22
+        );
+
+        $this->assertEquals(4400, $result);
+    }
+}
+```
+
+### Test Database
+
+The test database is automatically created during container initialization.
+
+**Manual Creation:**
+
+```bash
+docker exec -it dev_container psql -h pgsql -U admin -d mydb \
+  -c "CREATE DATABASE mydb_test;"
+```
+
+**Resetting Test Database:**
+
+```bash
+# Migrations run automatically with RefreshDatabase trait
+# Manual reset if needed:
+docker exec -it dev_container bash -c "cd /app/code/api && php artisan migrate:fresh --env=testing"
+```
+
+<Warning>
+  Never run `migrate:fresh` on production or the main `mydb` database!
+</Warning>
+
+## Frontend Testing (Vitest)
+
+The React webapp uses Vitest for fast unit and component testing.
+
+### Test Configuration
+
+Configuration in `code/webapp/vite.config.ts` and `code/webapp/vitest.config.ts`.
+
+### Running Frontend Tests
+
+<CodeGroup>
+```bash Run Tests
+# Inside container or on host (if Node installed)
+cd code/webapp
+
+# Run all tests
+npm run test
+
+# Watch mode (re-runs on file changes)
+npm run test -- --watch
+```
+
+```bash With Coverage
+# Generate coverage report
+npm run test:coverage
+
+# Coverage report will be in code/webapp/coverage/
+```
+
+```bash Specific Tests
+# Run tests matching pattern
+npm run test -- --grep="Button"
+
+# Run specific test file
+npm run test src/components/ui/button.test.tsx
+```
+</CodeGroup>
+
+### Test Structure
+
+```
+code/webapp/
+├── src/
+│   ├── components/
+│   │   └── ui/
+│   │       ├── button.tsx
+│   │       └── button.test.tsx
+│   ├── services/
+│   │   └── employee-api.test.ts
+│   └── lib/
+│       └── utils.test.ts
+└── vitest.config.ts
+```
+
+### Writing Frontend Tests
+
+#### Component Test Example
+
+```tsx
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { Button } from './button'
+
+describe('Button', () => {
+  it('renders with correct text', () => {
+    render(<Button>Click me</Button>)
+    expect(screen.getByText('Click me')).toBeInTheDocument()
+  })
+
+  it('applies variant classes', () => {
+    render(<Button variant="destructive">Delete</Button>)
+    const button = screen.getByText('Delete')
+    expect(button).toHaveClass('bg-destructive')
+  })
+})
+```
+
+#### API Service Test Example
+
+```typescript
+import { describe, it, expect, vi } from 'vitest'
+import { employeeApi } from './employee-api'
+
+describe('employeeApi', () => {
+  it('fetches employees list', async () => {
+    const mockData = {
+      data: {
+        employees: [
+          { id: '1', name: 'John Doe' },
+        ],
+      },
+    }
+
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        json: () => Promise.resolve(mockData),
+      })
+    )
+
+    const result = await employeeApi.list()
+    expect(result.employees).toHaveLength(1)
+    expect(result.employees[0].name).toBe('John Doe')
+  })
+})
+```
+
+## End-to-End Testing (Cypress)
+
+Cypress tests simulate real user workflows across the entire stack.
+
+### E2E Environment
+
+E2E tests run in an isolated environment with:
+- Separate database (`mydb_e2e`)
+- Dedicated container (`e2e_container`)
+- Fresh seeded data on each run
+
+### Running E2E Tests
+
+<CodeGroup>
+```bash Interactive Mode (Recommended)
+# Start Cypress UI with VNC viewer
+make cypress-ui
+
+# Open browser to http://localhost:6080
+# Click "Open Cypress" in the desktop
+```
+
+```bash Headless Mode
+# Run all tests in headless mode
+make cypress-run
+
+# Or manually:
+docker compose -f docker-compose.yml -f docker-compose.e2e.yml run --rm cypress
+```
+
+```bash Direct (without Docker)
+cd code/webapp
+
+# Open Cypress UI locally
+npm run cypress:open
+
+# Run headless locally
+npm run cypress:run
+```
+</CodeGroup>
+
+### E2E Test Structure
+
+```
+code/webapp/cypress/
+├── e2e/                    # Test files
+│   ├── auth/
+│   │   ├── login.cy.ts
+│   │   └── logout.cy.ts
+│   ├── employees/
+│   │   ├── create-employee.cy.ts
+│   │   └── list-employees.cy.ts
+│   └── inventory/
+│       └── stock-movement.cy.ts
+├── fixtures/               # Test data
+│   └── users.json
+├── support/
+│   ├── commands.ts         # Custom commands
+│   └── e2e.ts             # Global config
+└── cypress.config.ts       # Cypress configuration
+```
+
+### Writing E2E Tests
+
+```typescript
+// cypress/e2e/employees/create-employee.cy.ts
+describe('Create Employee', () => {
+  beforeEach(() => {
+    cy.login('admin@sushigo.com', 'admin123456')
+    cy.visit('/employees')
+  })
+
+  it('creates a new employee successfully', () => {
+    cy.get('[data-testid="create-employee-btn"]').click()
+    
+    cy.get('[name="name"]').type('Jane Smith')
+    cy.get('[name="email"]').type('jane@example.com')
+    cy.get('[name="role"]').select('cook')
+    
+    cy.get('[data-testid="submit-btn"]').click()
+    
+    cy.contains('Employee created successfully').should('be.visible')
+    cy.contains('Jane Smith').should('be.visible')
+  })
+
+  it('shows validation errors for invalid input', () => {
+    cy.get('[data-testid="create-employee-btn"]').click()
+    cy.get('[data-testid="submit-btn"]').click()
+    
+    cy.contains('Name is required').should('be.visible')
+    cy.contains('Email is required').should('be.visible')
+  })
+})
+```
+
+### Custom Cypress Commands
+
+Define reusable commands in `cypress/support/commands.ts`:
+
+```typescript
+Cypress.Commands.add('login', (email: string, password: string) => {
+  cy.session([email, password], () => {
+    cy.visit('/login')
+    cy.get('[name="email"]').type(email)
+    cy.get('[name="password"]').type(password)
+    cy.get('[type="submit"]').click()
+    cy.url().should('not.include', '/login')
+  })
+})
+
+declare global {
+  namespace Cypress {
+    interface Chainable {
+      login(email: string, password: string): Chainable<void>
+    }
+  }
+}
+```
+
+### Cypress Configuration
+
+Base URL and environment variables in `code/webapp/cypress.config.ts`:
+
+```typescript
+export default defineConfig({
+  e2e: {
+    baseUrl: 'https://sushigo.e2e.local',
+    video: true,
+    screenshotOnRunFailure: true,
+  },
+})
+```
+
+Override via environment variables:
+
+```bash
+CYPRESS_baseUrl=https://devtest.sushigo.local make cypress-run
+```
+
+## Continuous Integration
+
+### GitHub Actions Example
+
+```yaml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: mydb_test
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: admin
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: cd code/api && composer install
+      - name: Run tests
+        run: cd code/api && php artisan test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: cd code/webapp && npm ci
+      - name: Run tests
+        run: cd code/webapp && npm run test
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Start services
+        run: docker compose up -d
+      - name: Run Cypress
+        run: docker compose -f docker-compose.e2e.yml run --rm cypress
+```
+
+## Test Data Management
+
+### Seeders for Testing
+
+Use `RepeatableSeeder` for test data that resets on each run:
+
+```php
+// database/seeders/Testing/TestDataSeeder.php
+class TestDataSeeder extends RepeatableSeeder
+{
+    public function run(): void
+    {
+        User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => Hash::make('password'),
+        ]);
+
+        Employee::factory(10)->create();
+    }
+}
+```
+
+### Fixtures for Cypress
+
+Use JSON fixtures for consistent test data:
+
+```json
+// cypress/fixtures/users.json
+{
+  "admin": {
+    "email": "admin@sushigo.com",
+    "password": "admin123456"
+  },
+  "manager": {
+    "email": "inventory@sushigo.com",
+    "password": "inventory123456"
+  }
+}
+```
+
+```typescript
+// Use in tests
+cy.fixture('users').then((users) => {
+  cy.login(users.admin.email, users.admin.password)
+})
+```
+
+## Debugging Tests
+
+### PHPUnit Debugging
+
+```php
+// Add breakpoint in test
+dd($response->json());
+
+// Print variable
+dump($employee->toArray());
+
+// Enable verbose output
+php artisan test --verbose
+```
+
+### Vitest Debugging
+
+```typescript
+// Console log in test
+console.log('Result:', result)
+
+// Debug mode
+npm run test -- --reporter=verbose
+
+// Run single test in watch mode
+npm run test -- --watch --grep="specific test"
+```
+
+### Cypress Debugging
+
+```typescript
+// Pause test execution
+cy.pause()
+
+// Print value
+cy.get('[name="email"]').then(($el) => {
+  console.log($el.val())
+})
+
+// Take screenshot
+cy.screenshot('debug-screen')
+
+// View in interactive mode
+make cypress-ui
+```
+
+Open Cypress UI at http://localhost:6080 to see tests running in real-time with time-travel debugging.
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Test Isolation">
+    - Use `RefreshDatabase` trait in Laravel tests
+    - Clear cache/state between Vitest tests
+    - Seed E2E database fresh on each Cypress run
+    - Never depend on test execution order
+  </Accordion>
+
+  <Accordion title="Test Naming">
+    ```php
+    // ✅ GOOD - Descriptive test names
+    test_admin_can_create_employee_with_valid_data()
+    test_validates_required_fields()
+    test_returns_404_for_missing_employee()
+
+    // ❌ BAD - Vague names
+    test_create()
+    test_validation()
+    test_api()
+    ```
+  </Accordion>
+
+  <Accordion title="AAA Pattern">
+    ```php
+    public function test_example(): void
+    {
+        // Arrange - Set up test data
+        $user = User::factory()->create();
+        
+        // Act - Perform action
+        $response = $this->actingAs($user)->get('/api/employees');
+        
+        // Assert - Verify result
+        $response->assertStatus(200);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Mock External Services">
+    ```php
+    // Mock HTTP calls
+    Http::fake([
+        'api.example.com/*' => Http::response(['data' => 'mocked'], 200),
+    ]);
+
+    // Mock time
+    Carbon::setTestNow('2026-03-06 10:00:00');
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="PHPUnit database errors">
+    ```bash
+    # Ensure test database exists
+    docker exec -it postgres_container psql -U admin -l | grep mydb_test
+
+    # Create if missing
+    docker exec -it dev_container psql -h pgsql -U admin -d mydb \
+      -c "CREATE DATABASE mydb_test;"
+
+    # Run migrations
+    docker exec -it dev_container bash -c "cd /app/code/api && php artisan migrate --env=testing"
+    ```
+  </Accordion>
+
+  <Accordion title="Vitest import errors">
+    ```bash
+    # Clear node_modules and reinstall
+    cd code/webapp
+    rm -rf node_modules package-lock.json
+    npm install
+
+    # Ensure Vitest is installed
+    npm install -D vitest @vitest/coverage-v8
+    ```
+  </Accordion>
+
+  <Accordion title="Cypress connection refused">
+    ```bash
+    # Ensure E2E container is running
+    docker compose ps test_e2e
+
+    # Start if not running
+    make e2e-up
+
+    # Check baseUrl is correct
+    docker compose -f docker-compose.e2e.yml logs test_e2e
+
+    # Verify hosts file has sushigo.e2e.local
+    cat /etc/hosts | grep sushigo
+    ```
+  </Accordion>
+
+  <Accordion title="Cypress UI VNC not loading">
+    ```bash
+    # Check cypress-ui container is running
+    docker compose ps cypress-ui
+
+    # View logs
+    docker compose -f docker-compose.e2e.yml logs cypress-ui
+
+    # Rebuild container
+    docker compose -f docker-compose.e2e.yml build cypress-ui
+    docker compose -f docker-compose.e2e.yml up -d cypress-ui
+
+    # Access at http://localhost:6080
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Conventions" icon="book" href="/development/conventions">
+    Learn code and Git conventions
+  </Card>
+  
+  <Card title="Docker Compose" icon="docker" href="/development/docker-compose">
+    Understand the container architecture
+  </Card>
+</CardGroup>

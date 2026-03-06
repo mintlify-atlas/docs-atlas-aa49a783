@@ -1,0 +1,423 @@
+---
+title: Item Variants
+description: Manage item variants with different units of measure
+---
+
+Item variants represent specific presentations of an item (e.g., 1kg bag, 5kg box). Each variant has its own unit of measure, pricing, and stock tracking.
+
+## List Item Variants
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/item-variants?item_id=1&per_page=20" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/item-variants?item_id=1', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Query Parameters
+
+<ParamField query="item_id" type="integer">
+  Filter by parent item ID
+</ParamField>
+
+<ParamField query="is_active" type="boolean">
+  Filter by active status
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search by code or name (case-insensitive partial match)
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Items per page
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="array">
+  <Expandable title="Item Variant Object">
+    <ResponseField name="id" type="integer">Variant ID</ResponseField>
+    <ResponseField name="item_id" type="integer">Parent item ID</ResponseField>
+    <ResponseField name="uom_id" type="integer">Base unit of measure ID</ResponseField>
+    <ResponseField name="code" type="string">Unique variant code</ResponseField>
+    <ResponseField name="name" type="string">Variant name</ResponseField>
+    <ResponseField name="description" type="string">Description</ResponseField>
+    <ResponseField name="track_lot" type="boolean">Track lot numbers</ResponseField>
+    <ResponseField name="track_serial" type="boolean">Track serial numbers</ResponseField>
+    <ResponseField name="last_unit_cost" type="number">Last purchase/production cost</ResponseField>
+    <ResponseField name="avg_unit_cost" type="number">Weighted average cost</ResponseField>
+    <ResponseField name="sale_price" type="number">Default sale price</ResponseField>
+    <ResponseField name="min_stock" type="number">Minimum stock level</ResponseField>
+    <ResponseField name="max_stock" type="number">Maximum stock level</ResponseField>
+    <ResponseField name="is_active" type="boolean">Active status</ResponseField>
+    <ResponseField name="item" type="object">Parent item details (id, sku, name, type)</ResponseField>
+    <ResponseField name="uom" type="object">Unit of measure details (id, code, name, symbol)</ResponseField>
+    <ResponseField name="created_at" type="string">Created timestamp</ResponseField>
+    <ResponseField name="updated_at" type="string">Updated timestamp</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 200,
+  "data": [
+    {
+      "id": 1,
+      "item_id": 1,
+      "uom_id": 3,
+      "code": "ARR-KG",
+      "name": "Arroz Premium 1kg",
+      "description": "Presentación de 1 kilogramo",
+      "track_lot": false,
+      "track_serial": false,
+      "last_unit_cost": 28.50,
+      "avg_unit_cost": 27.80,
+      "sale_price": 35.00,
+      "min_stock": 10.0,
+      "max_stock": 100.0,
+      "is_active": true,
+      "item": {
+        "id": 1,
+        "sku": "INS-001",
+        "name": "Arroz Sushi Premium",
+        "type": "INSUMO"
+      },
+      "uom": {
+        "id": 3,
+        "code": "KG",
+        "name": "Kilogramo",
+        "symbol": "kg"
+      },
+      "created_at": "2026-01-15T10:30:00+00:00",
+      "updated_at": "2026-01-15T10:30:00+00:00"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "per_page": 15,
+    "total": 3
+  }
+}
+```
+
+---
+
+## Create Item Variant
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.sushigo.com/api/v1/item-variants" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "item_id": 1,
+    "uom_id": 3,
+    "code": "ARR-KG",
+    "name": "Arroz Premium 1kg",
+    "description": "Presentación de 1 kilogramo",
+    "sale_price": 35.00,
+    "min_stock": 10,
+    "max_stock": 100,
+    "track_lot": false,
+    "is_active": true
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/item-variants', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    item_id: 1,
+    uom_id: 3,
+    code: 'ARR-KG',
+    name: 'Arroz Premium 1kg',
+    sale_price: 35.00
+  })
+});
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="item_id" type="integer" required>
+  Parent item ID (must exist)
+</ParamField>
+
+<ParamField body="uom_id" type="integer" required>
+  Base unit of measure ID
+</ParamField>
+
+<ParamField body="code" type="string" required>
+  Unique variant code (auto-uppercased, max 100 chars)
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Variant name (max 255 chars)
+</ParamField>
+
+<ParamField body="barcode" type="string">
+  Product barcode (EAN, UPC, Code128, etc.) - cleaned and uppercased automatically
+</ParamField>
+
+<ParamField body="description" type="string">
+  Variant description
+</ParamField>
+
+<ParamField body="track_lot" type="boolean" default="false">
+  Track lot/batch numbers
+</ParamField>
+
+<ParamField body="track_serial" type="boolean" default="false">
+  Track individual serial numbers
+</ParamField>
+
+<ParamField body="sale_price" type="number">
+  Default sale price (≥ 0)
+</ParamField>
+
+<ParamField body="min_stock" type="number" default="0">
+  Minimum stock level (≥ 0)
+</ParamField>
+
+<ParamField body="max_stock" type="number" default="0">
+  Maximum stock level (≥ min_stock)
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status
+</ParamField>
+
+### Response
+
+Returns the created variant object with related item and UOM data. Status `201`.
+
+### Errors
+
+- `422` - Validation error (duplicate code, invalid item/UOM, max_stock < min_stock)
+- `403` - Insufficient permissions
+
+---
+
+## Get Item Variant
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/item-variants/1" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/item-variants/1', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Item variant ID
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="Variant Details">
+    <ResponseField name="id" type="integer">Variant ID</ResponseField>
+    <ResponseField name="item_id" type="integer">Parent item ID</ResponseField>
+    <ResponseField name="uom_id" type="integer">Base UOM ID</ResponseField>
+    <ResponseField name="code" type="string">Variant code</ResponseField>
+    <ResponseField name="name" type="string">Variant name</ResponseField>
+    <ResponseField name="description" type="string">Description</ResponseField>
+    <ResponseField name="track_lot" type="boolean">Lot tracking enabled</ResponseField>
+    <ResponseField name="track_serial" type="boolean">Serial tracking enabled</ResponseField>
+    <ResponseField name="last_unit_cost" type="number">Last cost</ResponseField>
+    <ResponseField name="avg_unit_cost" type="number">Average cost</ResponseField>
+    <ResponseField name="sale_price" type="number">Sale price</ResponseField>
+    <ResponseField name="min_stock" type="number">Min stock</ResponseField>
+    <ResponseField name="max_stock" type="number">Max stock</ResponseField>
+    <ResponseField name="is_active" type="boolean">Active</ResponseField>
+    <ResponseField name="total_on_hand" type="number">Total quantity across all locations</ResponseField>
+    <ResponseField name="total_reserved" type="number">Total reserved quantity</ResponseField>
+    <ResponseField name="total_available" type="number">Total available (on_hand - reserved)</ResponseField>
+    <ResponseField name="item" type="object">Item details</ResponseField>
+    <ResponseField name="uom" type="object">UOM details</ResponseField>
+    <ResponseField name="created_at" type="string">Created timestamp</ResponseField>
+    <ResponseField name="updated_at" type="string">Updated timestamp</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 200,
+  "data": {
+    "id": 1,
+    "code": "ARR-KG",
+    "name": "Arroz Premium 1kg",
+    "total_on_hand": 250.0,
+    "total_reserved": 15.0,
+    "total_available": 235.0,
+    "avg_unit_cost": 27.80,
+    "sale_price": 35.00,
+    "item": {
+      "id": 1,
+      "sku": "INS-001",
+      "name": "Arroz Sushi Premium",
+      "type": "INSUMO"
+    },
+    "uom": {
+      "id": 3,
+      "code": "KG",
+      "name": "Kilogramo",
+      "symbol": "kg"
+    }
+  }
+}
+```
+
+### Errors
+
+- `404` - Variant not found
+
+---
+
+## Update Item Variant
+
+<CodeGroup>
+```bash cURL
+curl -X PUT "https://api.sushigo.com/api/v1/item-variants/1" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sale_price": 38.00,
+    "min_stock": 15
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/item-variants/1', {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    sale_price: 38.00,
+    min_stock: 15
+  })
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Item variant ID
+</ParamField>
+
+### Request Body
+
+All fields are optional. Only provided fields will be updated.
+
+<ParamField body="code" type="string">
+  Variant code (must be unique)
+</ParamField>
+
+<ParamField body="barcode" type="string">
+  Product barcode
+</ParamField>
+
+<ParamField body="name" type="string">
+  Variant name
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description
+</ParamField>
+
+<ParamField body="sale_price" type="number">
+  Sale price
+</ParamField>
+
+<ParamField body="min_stock" type="number">
+  Minimum stock
+</ParamField>
+
+<ParamField body="max_stock" type="number">
+  Maximum stock
+</ParamField>
+
+<ParamField body="is_active" type="boolean">
+  Active status
+</ParamField>
+
+<Note>
+`item_id`, `uom_id`, `track_lot`, and `track_serial` cannot be changed after creation.
+</Note>
+
+### Response
+
+Returns the updated variant object with status `200`.
+
+### Errors
+
+- `404` - Variant not found
+- `422` - Validation error
+- `403` - Insufficient permissions
+
+---
+
+## Delete Item Variant
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.sushigo.com/api/v1/item-variants/1" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/item-variants/1', {
+  method: 'DELETE',
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Item variant ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "status": 200,
+  "message": "Item variant deleted successfully"
+}
+```
+
+### Errors
+
+- `404` - Variant not found
+- `409` - Cannot delete - variant has stock on hand. Clear inventory first.
+- `403` - Insufficient permissions
+
+<Warning>
+Variants with stock on hand cannot be deleted. You must first consume or move all stock to zero before deletion.
+</Warning>

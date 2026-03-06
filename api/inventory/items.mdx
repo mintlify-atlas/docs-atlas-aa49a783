@@ -1,0 +1,361 @@
+---
+title: Items
+description: Manage inventory items (product catalog)
+---
+
+Items represent products, ingredients, or assets in your catalog. Each item can have multiple variants with different units of measure.
+
+## List Items
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/items?type=INSUMO&per_page=20" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/items?type=INSUMO', {
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN'
+  }
+});
+const data = await response.json();
+```
+</CodeGroup>
+
+### Query Parameters
+
+<ParamField query="type" type="string">
+  Filter by item type: `INSUMO` (ingredient), `PRODUCTO` (finished product), or `ACTIVO` (asset)
+</ParamField>
+
+<ParamField query="is_stocked" type="boolean">
+  Filter by inventory tracking status
+</ParamField>
+
+<ParamField query="is_perishable" type="boolean">
+  Filter by perishability (items with expiration dates)
+</ParamField>
+
+<ParamField query="is_active" type="boolean">
+  Filter by active status
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search by SKU or name (case-insensitive partial match)
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="15">
+  Number of items per page
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="array">
+  <Expandable title="Item Object">
+    <ResponseField name="id" type="integer">
+      Unique item identifier
+    </ResponseField>
+    <ResponseField name="sku" type="string">
+      Stock Keeping Unit code (unique)
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Item name
+    </ResponseField>
+    <ResponseField name="description" type="string">
+      Item description
+    </ResponseField>
+    <ResponseField name="type" type="string">
+      Item type: `INSUMO`, `PRODUCTO`, or `ACTIVO`
+    </ResponseField>
+    <ResponseField name="is_stocked" type="boolean">
+      Whether this item is tracked in inventory
+    </ResponseField>
+    <ResponseField name="is_perishable" type="boolean">
+      Whether this item has expiration dates
+    </ResponseField>
+    <ResponseField name="is_active" type="boolean">
+      Whether this item is active
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      ISO 8601 timestamp
+    </ResponseField>
+    <ResponseField name="updated_at" type="string">
+      ISO 8601 timestamp
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Pagination metadata (current_page, last_page, per_page, total)
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "status": 200,
+  "data": [
+    {
+      "id": 1,
+      "sku": "INS-001",
+      "name": "Arroz Sushi Premium",
+      "description": "Arroz japonés premium para sushi",
+      "type": "INSUMO",
+      "is_stocked": true,
+      "is_perishable": false,
+      "is_active": true,
+      "created_at": "2026-01-15T10:30:00+00:00",
+      "updated_at": "2026-01-15T10:30:00+00:00"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 5,
+    "per_page": 15,
+    "total": 73
+  }
+}
+```
+
+---
+
+## Create Item
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.sushigo.com/api/v1/items" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sku": "INS-002",
+    "name": "Salmon Fresco",
+    "description": "Filete de salmón fresco",
+    "type": "INSUMO",
+    "is_stocked": true,
+    "is_perishable": true,
+    "is_active": true
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/items', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    sku: 'INS-002',
+    name: 'Salmon Fresco',
+    type: 'INSUMO',
+    is_perishable: true
+  })
+});
+```
+</CodeGroup>
+
+### Request Body
+
+<ParamField body="sku" type="string" required>
+  Unique SKU code (auto-uppercased, max 100 chars)
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Item name (max 255 chars)
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Item type: `INSUMO`, `PRODUCTO`, or `ACTIVO`
+</ParamField>
+
+<ParamField body="description" type="string">
+  Item description
+</ParamField>
+
+<ParamField body="is_stocked" type="boolean" default="true">
+  Track in inventory
+</ParamField>
+
+<ParamField body="is_perishable" type="boolean" default="false">
+  Has expiration date
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status
+</ParamField>
+
+### Response
+
+Returns the created item object with status `201`.
+
+### Errors
+
+- `422` - Validation error (duplicate SKU, invalid type, etc.)
+- `403` - Insufficient permissions
+
+---
+
+## Get Item
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.sushigo.com/api/v1/items/1" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/items/1', {
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Item ID
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <Expandable title="Item Details">
+    <ResponseField name="id" type="integer">Item ID</ResponseField>
+    <ResponseField name="sku" type="string">SKU code</ResponseField>
+    <ResponseField name="name" type="string">Item name</ResponseField>
+    <ResponseField name="description" type="string">Description</ResponseField>
+    <ResponseField name="type" type="string">Type</ResponseField>
+    <ResponseField name="is_stocked" type="boolean">Tracked in inventory</ResponseField>
+    <ResponseField name="is_perishable" type="boolean">Has expiration</ResponseField>
+    <ResponseField name="is_manufactured" type="boolean">Requires manufacturing</ResponseField>
+    <ResponseField name="is_active" type="boolean">Active status</ResponseField>
+    <ResponseField name="variants_count" type="integer">Number of variants</ResponseField>
+    <ResponseField name="created_at" type="string">Created timestamp</ResponseField>
+    <ResponseField name="updated_at" type="string">Updated timestamp</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+- `404` - Item not found
+
+---
+
+## Update Item
+
+<CodeGroup>
+```bash cURL
+curl -X PUT "https://api.sushigo.com/api/v1/items/1" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Arroz Sushi Premium Plus",
+    "is_active": true
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/items/1', {
+  method: 'PUT',
+  headers: {
+    'Authorization': 'Bearer YOUR_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Arroz Sushi Premium Plus'
+  })
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Item ID
+</ParamField>
+
+### Request Body
+
+All fields are optional. Only provided fields will be updated.
+
+<ParamField body="sku" type="string">
+  SKU code (must be unique)
+</ParamField>
+
+<ParamField body="name" type="string">
+  Item name
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description
+</ParamField>
+
+<ParamField body="type" type="string">
+  Type: `INSUMO`, `PRODUCTO`, or `ACTIVO`
+</ParamField>
+
+<ParamField body="is_stocked" type="boolean">
+  Track in inventory
+</ParamField>
+
+<ParamField body="is_perishable" type="boolean">
+  Has expiration
+</ParamField>
+
+<ParamField body="is_active" type="boolean">
+  Active status
+</ParamField>
+
+### Response
+
+Returns the updated item object with status `200`.
+
+### Errors
+
+- `404` - Item not found
+- `422` - Validation error
+- `403` - Insufficient permissions
+
+---
+
+## Delete Item
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.sushigo.com/api/v1/items/1" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.sushigo.com/api/v1/items/1', {
+  method: 'DELETE',
+  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+});
+```
+</CodeGroup>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Item ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "status": 200,
+  "message": "Item deleted successfully"
+}
+```
+
+### Errors
+
+- `404` - Item not found
+- `409` - Cannot delete - item has variants. Delete all variants first.
+- `403` - Insufficient permissions
+
+<Note>
+Items with variants cannot be deleted. Remove all variants before deleting the parent item.
+</Note>

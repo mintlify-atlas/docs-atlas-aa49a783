@@ -1,0 +1,573 @@
+---
+title: 'Wage History'
+description: 'Track and manage employee wages with effective-dated history'
+---
+
+## Overview
+
+SushiGo maintains a complete history of employee wages using **effective-dated records**. This allows the system to track wage changes over time, apply the correct wage for payroll calculations in any period, and maintain an audit trail of compensation changes.
+
+## Why Effective-Dated History?
+
+Traditional systems might simply update an employee's current wage, losing historical data. Effective-dated history solves several business problems:
+
+<CardGroup cols={2}>
+  <Card title="Historical Accuracy" icon="clock-rotate-left">
+    Calculate past payroll periods with the wages that were actually in effect at that time
+  </Card>
+  
+  <Card title="Future Planning" icon="calendar-days">
+    Schedule wage increases in advance with a future effective date
+  </Card>
+  
+  <Card title="Audit Trail" icon="list-check">
+    Complete record of all wage changes for compliance and review
+  </Card>
+  
+  <Card title="Retroactive Corrections" icon="rotate-left">
+    Close previous wage records and create new ones if errors are discovered
+  </Card>
+</CardGroup>
+
+## Data Model
+
+### WageHistory Fields
+
+```php
+'employee_id'              // Foreign key to Employee
+'hourly_rate'              // Decimal(10,2), must be > 0
+'weekly_scheduled_hours'   // Decimal(5,2), must be > 0
+'effective_from'           // Required date - when wage starts
+'effective_to'             // Nullable date - when wage ends (null = current)
+```
+
+### Key Concepts
+
+<AccordionGroup>
+  <Accordion title="Hourly Rate">
+    The amount paid per hour worked. Must be strictly greater than zero.
+    
+    **Examples**:
+    - `125.00` - $125.00 per hour
+    - `85.50` - $85.50 per hour
+    
+    <Warning>Zero or negative rates are invalid and will be rejected</Warning>
+  </Accordion>
+  
+  <Accordion title="Weekly Scheduled Hours">
+    The standard number of hours the employee is scheduled to work per week. Used to calculate full-time equivalency and proportional benefits.
+    
+    **Examples**:
+    - `48.00` - Standard full-time (6 days × 8 hours)
+    - `40.00` - 5-day work week
+    - `24.00` - Part-time employee
+    
+    <Warning>Must be strictly greater than zero</Warning>
+  </Accordion>
+  
+  <Accordion title="Effective From">
+    The date when this wage becomes effective. Can be:
+    - **Past date**: Retroactive wage (e.g., correcting historical records)
+    - **Current date**: Immediate wage change
+    - **Future date**: Scheduled wage increase
+    
+    <Info>System uses this date to determine which wage applies for payroll calculations</Info>
+  </Accordion>
+  
+  <Accordion title="Effective To">
+    The last date this wage is valid. After this date, the next wage record takes effect.
+    
+    - **NULL**: Currently active wage (open-ended)
+    - **Date value**: Wage was replaced or closed on this date
+    
+    <Check>Only one wage record should have `effective_to = NULL` per employee (the current wage)</Check>
+  </Accordion>
+</AccordionGroup>
+
+## Validation Rules
+
+The validation rules are defined as constants in `WageHistory.php:22`:
+
+```php
+const RULES = [
+    'hourly_rate' => ['required', 'numeric', 'gt:0'],
+    'weekly_scheduled_hours' => ['required', 'numeric', 'gt:0'],
+    'effective_from' => ['required', 'date'],
+    'effective_to' => ['nullable', 'date', 'after_or_equal:effective_from'],
+];
+```
+
+### Field Requirements
+
+| Field | Required | Type | Constraints |
+|-------|----------|------|-------------|
+| `hourly_rate` | Yes | Numeric | Must be > 0 |
+| `weekly_scheduled_hours` | Yes | Numeric | Must be > 0 |
+| `effective_from` | Yes | Date | ISO 8601 format |
+| `effective_to` | No | Date | Must be ≥ effective_from if provided |
+
+## Creating Wage Records
+
+### Initial Wage
+
+When an employee is created, you'll typically create their initial wage record:
+
+<CodeGroup>
+```bash Create Initial Wage
+curl -X POST "/api/v1/employees/{employee_id}/wages" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "hourly_rate": 125.00,
+    "weekly_scheduled_hours": 48.00,
+    "effective_from": "2026-03-06"
+  }'
+```
+
+```json Response (201 Created)
+{
+  "status": 201,
+  "data": {
+    "id": "01JCEQZ8A2KXNM3P4R5S6T7U8V",
+    "employee_id": "01JCEQZ8A2ABCDEF123456789",
+    "hourly_rate": "125.00",
+    "weekly_scheduled_hours": "48.00",
+    "effective_from": "2026-03-06",
+    "effective_to": null,
+    "created_at": "2026-03-06T10:00:00+00:00"
+  }
+}
+```
+</CodeGroup>
+
+<Note>
+`effective_to` is `null`, indicating this is the current active wage
+</Note>
+
+### Wage Increase
+
+To give an employee a raise, create a new wage record:
+
+<Steps>
+  <Step title="Create new wage record">
+    Create a new `WageHistory` record with the increased rate and new `effective_from` date
+  </Step>
+  
+  <Step title="System closes previous wage">
+    The system automatically sets `effective_to` on the previous wage record to the day before the new wage's `effective_from`
+    
+    <Info>This automation may be implementation-specific. Check your actual API behavior.</Info>
+  </Step>
+  
+  <Step title="New wage becomes active">
+    On the `effective_from` date, the new wage is used for all payroll calculations
+  </Step>
+</Steps>
+
+<CodeGroup>
+```bash Schedule Wage Increase
+curl -X POST "/api/v1/employees/{employee_id}/wages" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "hourly_rate": 135.00,
+    "weekly_scheduled_hours": 48.00,
+    "effective_from": "2026-04-01"
+  }'
+```
+
+```json Response
+{
+  "status": 201,
+  "data": {
+    "id": "01JCEQZ8A3NEWRECORD123456",
+    "employee_id": "01JCEQZ8A2ABCDEF123456789",
+    "hourly_rate": "135.00",
+    "weekly_scheduled_hours": "48.00",
+    "effective_from": "2026-04-01",
+    "effective_to": null
+  }
+}
+```
+</CodeGroup>
+
+**Result**: Employee will earn $125/hr until March 31, 2026, then $135/hr starting April 1, 2026.
+
+## Querying Wage History
+
+### Get Current Wage
+
+To find the wage effective on a specific date, use the `effective()` scope:
+
+```php
+$currentWage = WageHistory::where('employee_id', $employee->id)
+    ->effective(now())
+    ->first();
+```
+
+The `effective()` scope is defined in `WageHistory.php:64`:
+
+```php
+public function scopeEffective(Builder $query, DateTimeInterface|string $date): Builder
+{
+    return $query
+        ->where('effective_from', '<=', $date)
+        ->where(function (Builder $q) use ($date) {
+            $q->whereNull('effective_to')
+              ->orWhere('effective_to', '>=', $date);
+        });
+}
+```
+
+### Logic Explanation
+
+A wage is effective on a date when:
+
+1. **effective_from ≤ date**: The wage has started
+2. **AND** either:
+   - **effective_to IS NULL**: The wage is currently active, OR
+   - **effective_to ≥ date**: The wage hasn't ended yet
+
+<Accordion title="Example: Wage Effective Date Logic">
+**Wage Records**:
+```json
+[
+  {
+    "hourly_rate": 100.00,
+    "effective_from": "2026-01-01",
+    "effective_to": "2026-02-29"
+  },
+  {
+    "hourly_rate": 110.00,
+    "effective_from": "2026-03-01",
+    "effective_to": "2026-03-31"
+  },
+  {
+    "hourly_rate": 120.00,
+    "effective_from": "2026-04-01",
+    "effective_to": null
+  }
+]
+```
+
+**Query Results**:
+- `effective('2026-02-15')` → $100.00/hr (first record)
+- `effective('2026-03-15')` → $110.00/hr (second record)
+- `effective('2026-04-15')` → $120.00/hr (third record, current)
+- `effective('2026-05-15')` → $120.00/hr (third record, still current)
+</Accordion>
+
+### Get All Wage History
+
+To retrieve complete wage history for an employee:
+
+```php
+$wageHistory = $employee->wageHistories()
+    ->orderBy('effective_from', 'desc')
+    ->get();
+```
+
+The relationship is defined in `Employee.php:94`:
+
+```php
+public function wageHistories(): HasMany
+{
+    return $this->hasMany(WageHistory::class)
+        ->orderBy('effective_from', 'desc');
+}
+```
+
+## Calculations
+
+### Per-Minute Rate
+
+The `WageHistory` model provides a helper to calculate the per-minute rate:
+
+```php
+public function minuteRate(): float
+{
+    return (float) $this->hourly_rate / 60;
+}
+```
+
+**Usage**:
+
+```php
+$wage = $employee->wageHistories()->effective(now())->first();
+$perMinute = $wage->minuteRate();
+
+// Example: $125/hr ÷ 60 = $2.0833.../minute
+```
+
+<Info>
+This is used for calculating pay deductions when employees are late or take unpaid partial leave (RF-15b, RF-25b).
+</Info>
+
+### Weekly Base Pay
+
+To calculate weekly base pay:
+
+```php
+$weeklyPay = $wage->hourly_rate * $wage->weekly_scheduled_hours;
+
+// Example: $125/hr × 48 hours = $6,000/week
+```
+
+### Daily Rate (Proportional)
+
+For daily wage calculations:
+
+```php
+$workingDaysPerWeek = 6; // From employee schedule
+$dailyRate = ($wage->hourly_rate * $wage->weekly_scheduled_hours) / $workingDaysPerWeek;
+
+// Example: ($125 × 48) ÷ 6 = $1,000/day
+```
+
+## Common Scenarios
+
+### Scenario 1: New Employee Initial Wage
+
+<Steps>
+  <Step title="Employee created">
+    Employee `EMP-025` hired on March 6, 2026
+  </Step>
+  
+  <Step title="Create wage record">
+    ```json
+    {
+      "hourly_rate": 100.00,
+      "weekly_scheduled_hours": 48.00,
+      "effective_from": "2026-03-06"
+    }
+    ```
+  </Step>
+  
+  <Step title="Result">
+    Employee has one wage record with `effective_to = null` (current wage)
+  </Step>
+</Steps>
+
+### Scenario 2: Scheduled Future Raise
+
+<Steps>
+  <Step title="Current state">
+    Employee earning $100/hr, effective since March 6
+  </Step>
+  
+  <Step title="Schedule raise">
+    Create new wage record:
+    ```json
+    {
+      "hourly_rate": 110.00,
+      "weekly_scheduled_hours": 48.00,
+      "effective_from": "2026-06-01"
+    }
+    ```
+  </Step>
+  
+  <Step title="Before June 1">
+    System uses $100/hr wage for all calculations
+  </Step>
+  
+  <Step title="On June 1 and after">
+    System automatically uses $110/hr wage for all calculations
+  </Step>
+</Steps>
+
+### Scenario 3: Retroactive Wage Correction
+
+<Steps>
+  <Step title="Discover error">
+    Employee should have been earning $120/hr since April 1, but system shows $110/hr
+  </Step>
+  
+  <Step title="Close incorrect wage">
+    Update old wage record:
+    ```json
+    {
+      "effective_to": "2026-03-31"
+    }
+    ```
+  </Step>
+  
+  <Step title="Create corrected wage">
+    Create new wage record with correct rate:
+    ```json
+    {
+      "hourly_rate": 120.00,
+      "weekly_scheduled_hours": 48.00,
+      "effective_from": "2026-04-01"
+    }
+    ```
+  </Step>
+  
+  <Step title="Recalculate payroll">
+    Reopen affected pay periods and recalculate with correct wage
+  </Step>
+</Steps>
+
+<Warning>
+Retroactive corrections require admin permissions and should trigger payroll recalculation for affected periods.
+</Warning>
+
+### Scenario 4: Change from Full-Time to Part-Time
+
+<Steps>
+  <Step title="Current state">
+    Employee working 48 hours/week at $100/hr
+  </Step>
+  
+  <Step title="Employee requests part-time">
+    Starting April 1, employee will work 24 hours/week
+  </Step>
+  
+  <Step title="Create new wage record">
+    ```json
+    {
+      "hourly_rate": 100.00,
+      "weekly_scheduled_hours": 24.00,
+      "effective_from": "2026-04-01"
+    }
+    ```
+    
+    <Info>Hourly rate stays the same, but weekly hours reduced</Info>
+  </Step>
+  
+  <Step title="Result">
+    - Before April 1: $100/hr × 48 hours = $4,800/week
+    - After April 1: $100/hr × 24 hours = $2,400/week
+  </Step>
+</Steps>
+
+## Payroll Integration
+
+### Pay Period Calculation
+
+When calculating pay for a period:
+
+<Steps>
+  <Step title="Identify pay period">
+    Example: March 4-10, 2026
+  </Step>
+  
+  <Step title="Query effective wage">
+    For each day in the period, get the wage effective on that day:
+    ```php
+    $wage = WageHistory::where('employee_id', $employeeId)
+        ->effective($date)
+        ->first();
+    ```
+  </Step>
+  
+  <Step title="Calculate daily pay">
+    Use the effective wage's `hourly_rate` and `weekly_scheduled_hours` for that day's calculations
+  </Step>
+  
+  <Step title="Sum period total">
+    Aggregate daily calculations for period total
+  </Step>
+</Steps>
+
+<Info>
+If wage changes mid-period, the system automatically uses the correct wage for each portion of the period.
+</Info>
+
+### Example: Wage Change Mid-Period
+
+**Pay Period**: March 27 - April 2, 2026 (Thu-Wed)
+
+**Wages**:
+- $100/hr until March 31
+- $110/hr starting April 1
+
+**Calculation**:
+
+| Date | Wage | Hours | Pay |
+|------|------|-------|-----|
+| Mar 27 | $100/hr | 8 | $800 |
+| Mar 28 | $100/hr | 8 | $800 |
+| Mar 29 | $100/hr | 8 | $800 |
+| Mar 30 | $100/hr | 8 | $800 |
+| Mar 31 | $100/hr | 8 | $800 |
+| Apr 1 | $110/hr | 8 | $880 |
+| Apr 2 | $110/hr | 8 | $880 |
+| **Total** | | **56 hrs** | **$5,760** |
+
+<Check>
+System automatically applies correct wage for each day without manual intervention
+</Check>
+
+## Validation Errors
+
+<CodeGroup>
+```json 422 - Rate Must Be Positive
+{
+  "message": "The hourly rate field must be greater than 0.",
+  "errors": {
+    "hourly_rate": [
+      "The hourly rate field must be greater than 0."
+    ]
+  }
+}
+```
+
+```json 422 - Hours Must Be Positive
+{
+  "message": "The weekly scheduled hours field must be greater than 0.",
+  "errors": {
+    "weekly_scheduled_hours": [
+      "The weekly scheduled hours field must be greater than 0."
+    ]
+  }
+}
+```
+
+```json 422 - Invalid Date Range
+{
+  "message": "The effective to field must be a date after or equal to effective from.",
+  "errors": {
+    "effective_to": [
+      "The effective to field must be a date after or equal to effective from."
+    ]
+  }
+}
+```
+</CodeGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Never Delete Wages" icon="ban">
+    Always close wage records with `effective_to` instead of deleting. Maintains complete audit trail.
+  </Card>
+  
+  <Card title="Schedule in Advance" icon="calendar-check">
+    Create future wage records to automate raises. System applies automatically on effective date.
+  </Card>
+  
+  <Card title="Document Changes" icon="memo">
+    Use `meta` field or notes to record reason for wage changes (promotion, cost of living, etc.)
+  </Card>
+  
+  <Card title="Validate Before Close" icon="circle-check">
+    Verify wage calculations are correct before closing a pay period
+  </Card>
+</CardGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Creating Employees" icon="user-plus" href="/employees/creating-employees">
+    Learn how to create employees and set initial wages
+  </Card>
+  <Card title="Attendance Tracking" icon="clock" href="/employees/attendance-tracking">
+    How wages integrate with attendance and payroll
+  </Card>
+  <Card title="Payroll Calculation" icon="calculator" href="/payroll/calculation">
+    Detailed payroll calculation logic using wage history
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/employees/wages">
+    Complete API documentation for wage management
+  </Card>
+</CardGroup>

@@ -1,0 +1,772 @@
+---
+title: "Unit of Measure Conversions"
+description: "Configure unit conversions to enable multi-UOM inventory transactions"
+---
+
+## Overview
+
+Unit of Measure (UOM) conversions enable flexible inventory transactions. You can receive stock in one unit (e.g., boxes), store it in another (e.g., individual units), and sell it in yet another (e.g., grams).
+
+<Info>
+  **Example**: Receive salmon in 5kg boxes, store as kg, transfer in grams, and track costing in kg.
+</Info>
+
+## UOM Structure
+
+### UnitOfMeasure (Base Units)
+
+Base units are the foundation of the conversion system.
+
+<ParamField body="code" type="string" required>
+  Unique UOM code (max 20 chars, typically uppercase)
+  
+  **Examples**: `KG`, `G`, `L`, `ML`, `UNIT`, `BOX`, `PACK`
+</ParamField>
+
+<ParamField body="name" type="string" required>
+  Full UOM name (max 100 chars)
+  
+  **Examples**: `Kilogram`, `Gram`, `Liter`, `Milliliter`, `Unit`, `Box`, `Pack`
+</ParamField>
+
+<ParamField body="symbol" type="string">
+  Display symbol (max 10 chars)
+  
+  **Examples**: `kg`, `g`, `L`, `mL`, `u`, `bx`, `pk`
+</ParamField>
+
+<ParamField body="precision" type="integer" default="2">
+  Decimal places for display (0-6)
+  
+  **Examples**: 0 for whole units, 2 for currency, 4 for scientific
+</ParamField>
+
+<ParamField body="is_decimal" type="boolean" default="true">
+  Whether fractional quantities are allowed
+  
+  - `true`: Can use 1.5 kg, 0.25 L
+  - `false`: Only whole numbers (e.g., 1 unit, 5 boxes)
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status (inactive UOMs hidden from selection)
+</ParamField>
+
+### UomConversion (Conversion Rules)
+
+Defines directed conversion factors between two UOMs.
+
+<ParamField body="from_uom_id" type="integer" required>
+  Source UOM ID
+</ParamField>
+
+<ParamField body="to_uom_id" type="integer" required>
+  Target UOM ID
+</ParamField>
+
+<ParamField body="factor" type="decimal(6)" required>
+  Multiplication factor: `target_qty = source_qty × factor`
+  
+  **Examples**: 
+  - KG → G: factor = 1000 (1 kg = 1000 g)
+  - BOX → UNIT: factor = 24 (1 box = 24 units)
+  - G → KG: factor = 0.001 (1 g = 0.001 kg)
+</ParamField>
+
+<ParamField body="tolerance" type="decimal(4)" default="0.00">
+  Acceptable variance percentage for physical counts
+  
+  **Example**: tolerance = 2.0 means ±2% variance is acceptable
+</ParamField>
+
+<ParamField body="is_active" type="boolean" default="true">
+  Active status (inactive conversions not used)
+</ParamField>
+
+## Common UOM Systems
+
+### Weight System
+
+```json
+[
+  {
+    "code": "KG",
+    "name": "Kilogram",
+    "symbol": "kg",
+    "precision": 4,
+    "is_decimal": true
+  },
+  {
+    "code": "G",
+    "name": "Gram",
+    "symbol": "g",
+    "precision": 2,
+    "is_decimal": true
+  },
+  {
+    "code": "LB",
+    "name": "Pound",
+    "symbol": "lb",
+    "precision": 4,
+    "is_decimal": true
+  },
+  {
+    "code": "OZ",
+    "name": "Ounce",
+    "symbol": "oz",
+    "precision": 2,
+    "is_decimal": true
+  }
+]
+```
+
+**Conversions**:
+- KG → G: factor = 1000
+- G → KG: factor = 0.001
+- KG → LB: factor = 2.20462
+- LB → KG: factor = 0.453592
+- LB → OZ: factor = 16
+- OZ → LB: factor = 0.0625
+
+### Volume System
+
+```json
+[
+  {
+    "code": "L",
+    "name": "Liter",
+    "symbol": "L",
+    "precision": 4,
+    "is_decimal": true
+  },
+  {
+    "code": "ML",
+    "name": "Milliliter",
+    "symbol": "mL",
+    "precision": 2,
+    "is_decimal": true
+  },
+  {
+    "code": "GAL",
+    "name": "Gallon",
+    "symbol": "gal",
+    "precision": 4,
+    "is_decimal": true
+  }
+]
+```
+
+**Conversions**:
+- L → ML: factor = 1000
+- ML → L: factor = 0.001
+- GAL → L: factor = 3.78541
+- L → GAL: factor = 0.264172
+
+### Count System
+
+```json
+[
+  {
+    "code": "UNIT",
+    "name": "Unit",
+    "symbol": "u",
+    "precision": 0,
+    "is_decimal": false
+  },
+  {
+    "code": "PACK",
+    "name": "Pack",
+    "symbol": "pk",
+    "precision": 0,
+    "is_decimal": false
+  },
+  {
+    "code": "BOX",
+    "name": "Box",
+    "symbol": "bx",
+    "precision": 0,
+    "is_decimal": false
+  },
+  {
+    "code": "CASE",
+    "name": "Case",
+    "symbol": "cs",
+    "precision": 0,
+    "is_decimal": false
+  }
+]
+```
+
+**Conversions** (item-specific):
+- BOX → UNIT: varies (e.g., 24 units per box)
+- PACK → UNIT: varies (e.g., 6 units per pack)
+- CASE → BOX: varies (e.g., 4 boxes per case)
+
+<Warning>
+  Count conversions are typically **item-specific**. A box of rice may contain 50 units, while a box of sauce contains 24 units.
+</Warning>
+
+## API Endpoints
+
+### Create UOM
+
+```http
+POST /api/v1/units-of-measure
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "code": "KG",
+  "name": "Kilogram",
+  "symbol": "kg",
+  "precision": 4,
+  "is_decimal": true,
+  "is_active": true
+}
+```
+
+<ResponseExample>
+```json Response (201 Created)
+{
+  "status": 201,
+  "data": {
+    "id": 1,
+    "code": "KG",
+    "name": "Kilogram",
+    "symbol": "kg",
+    "precision": 4,
+    "is_decimal": true,
+    "is_active": true,
+    "created_at": "2026-03-06T09:00:00Z",
+    "updated_at": "2026-03-06T09:00:00Z"
+  }
+}
+```
+</ResponseExample>
+
+### Create Conversion
+
+```http
+POST /api/v1/uom-conversions
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "from_uom_id": 1,
+  "to_uom_id": 2,
+  "factor": 1000.0,
+  "tolerance": 1.0,
+  "is_active": true
+}
+```
+
+<ResponseExample>
+```json Response (201 Created)
+{
+  "status": 201,
+  "data": {
+    "id": 1,
+    "from_uom_id": 1,
+    "to_uom_id": 2,
+    "factor": 1000.000000,
+    "tolerance": 1.0000,
+    "is_active": true,
+    "from_uom": {
+      "id": 1,
+      "code": "KG",
+      "name": "Kilogram",
+      "symbol": "kg"
+    },
+    "to_uom": {
+      "id": 2,
+      "code": "G",
+      "name": "Gram",
+      "symbol": "g"
+    },
+    "created_at": "2026-03-06T09:05:00Z",
+    "updated_at": "2026-03-06T09:05:00Z"
+  }
+}
+```
+</ResponseExample>
+
+### List UOMs
+
+```http
+GET /api/v1/units-of-measure?is_active=true&is_decimal=true
+Authorization: Bearer {token}
+```
+
+<ParamField query="is_active" type="boolean">
+  Filter active/inactive UOMs
+</ParamField>
+
+<ParamField query="is_decimal" type="boolean">
+  Filter decimal vs integer UOMs
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search by code or name
+</ParamField>
+
+### List Conversions
+
+```http
+GET /api/v1/uom-conversions?from_uom_id=1&is_active=true
+Authorization: Bearer {token}
+```
+
+<ParamField query="from_uom_id" type="integer">
+  Filter by source UOM
+</ParamField>
+
+<ParamField query="to_uom_id" type="integer">
+  Filter by target UOM
+</ParamField>
+
+<ParamField query="is_active" type="boolean">
+  Filter active/inactive conversions
+</ParamField>
+
+### Get Conversion Factor
+
+```http
+GET /api/v1/uom-conversions/factor?from_uom_id=1&to_uom_id=2
+Authorization: Bearer {token}
+```
+
+Returns the active conversion factor between two UOMs.
+
+<ResponseExample>
+```json Response (200 OK)
+{
+  "status": 200,
+  "data": {
+    "from_uom": {
+      "id": 1,
+      "code": "KG",
+      "symbol": "kg"
+    },
+    "to_uom": {
+      "id": 2,
+      "code": "G",
+      "symbol": "g"
+    },
+    "factor": 1000.000000,
+    "tolerance": 1.0000,
+    "example": "1 kg = 1000 g"
+  }
+}
+```
+</ResponseExample>
+
+## Real-World Examples
+
+### Example 1: Rice (Weight-Based)
+
+**Item**: Arroz Sushi Premium (INSUMO)  
+**Base UOM**: KG (kilogram)
+
+**UOM Setup**:
+```json
+[
+  { "code": "KG", "name": "Kilogram", "precision": 4, "is_decimal": true },
+  { "code": "G", "name": "Gram", "precision": 2, "is_decimal": true }
+]
+```
+
+**Conversions**:
+```json
+[
+  {
+    "from_uom_id": 1,
+    "to_uom_id": 2,
+    "factor": 1000.0,
+    "tolerance": 1.0
+  },
+  {
+    "from_uom_id": 2,
+    "to_uom_id": 1,
+    "factor": 0.001,
+    "tolerance": 1.0
+  }
+]
+```
+
+**Usage**:
+- Receive: 50 kg (opening balance)
+- Transfer to kitchen: 2000 g (2 kg)
+- System stores: 48 kg remaining at warehouse, 2 kg at kitchen
+
+### Example 2: Soy Sauce (Volume-Based)
+
+**Item**: Salsa de Soja Kikkoman (INSUMO)  
+**Base UOM**: L (liter)
+
+**UOM Setup**:
+```json
+[
+  { "code": "L", "name": "Liter", "precision": 4, "is_decimal": true },
+  { "code": "ML", "name": "Milliliter", "precision": 2, "is_decimal": true },
+  { "code": "BTL", "name": "Bottle", "precision": 0, "is_decimal": false }
+]
+```
+
+**Conversions**:
+```json
+[
+  { "from_uom_id": 3, "to_uom_id": 4, "factor": 1000.0 },
+  { "from_uom_id": 4, "to_uom_id": 3, "factor": 0.001 },
+  { "from_uom_id": 5, "to_uom_id": 3, "factor": 1.0 }
+]
+```
+
+**Item-Specific**: 1 BTL = 1 L (standard bottle size)
+
+**Usage**:
+- Receive: 12 bottles
+- System stores: 12 L
+- Transfer to bar: 500 mL (0.5 L)
+- Remaining: 11.5 L
+
+### Example 3: Nori Sheets (Count-Based)
+
+**Item**: Nori Alga Sheets (INSUMO)  
+**Base UOM**: SHEET (individual sheet)
+
+**UOM Setup**:
+```json
+[
+  { "code": "SHEET", "name": "Sheet", "precision": 0, "is_decimal": false },
+  { "code": "PACK", "name": "Pack", "precision": 0, "is_decimal": false },
+  { "code": "BOX", "name": "Box", "precision": 0, "is_decimal": false }
+]
+```
+
+**Conversions** (specific to this item):
+```json
+[
+  { "from_uom_id": 7, "to_uom_id": 6, "factor": 50.0 },
+  { "from_uom_id": 8, "to_uom_id": 7, "factor": 10.0 },
+  { "from_uom_id": 8, "to_uom_id": 6, "factor": 500.0 }
+]
+```
+
+- 1 PACK = 50 SHEET
+- 1 BOX = 10 PACK = 500 SHEET
+
+**Usage**:
+- Receive: 2 boxes
+- System stores: 1000 sheets (2 × 500)
+- Transfer to kitchen: 5 packs (250 sheets)
+- Remaining: 750 sheets
+
+### Example 4: Salmon (Weight with Multiple Presentations)
+
+**Item**: Salmon Atlantic (INSUMO)  
+**Base UOM**: KG (kilogram)
+
+**Variants**:
+- `SAL-KG` - Salmon 1kg (base)
+- `SAL-SAKU` - Salmon Saku Block 250g
+- `SAL-PORTION` - Salmon Portion 200g
+
+**UOM Setup**:
+```json
+[
+  { "code": "KG", "name": "Kilogram", "precision": 4 },
+  { "code": "G", "name": "Gram", "precision": 2 },
+  { "code": "SAKU", "name": "Saku Block", "precision": 0, "is_decimal": false },
+  { "code": "PORTION", "name": "Portion", "precision": 0, "is_decimal": false }
+]
+```
+
+**Conversions**:
+```json
+[
+  { "from_uom_id": 1, "to_uom_id": 2, "factor": 1000.0 },
+  { "from_uom_id": 9, "to_uom_id": 2, "factor": 250.0 },
+  { "from_uom_id": 10, "to_uom_id": 2, "factor": 200.0 },
+  { "from_uom_id": 9, "to_uom_id": 1, "factor": 0.25 },
+  { "from_uom_id": 10, "to_uom_id": 1, "factor": 0.2 }
+]
+```
+
+**Usage**:
+- Receive: 20 kg bulk salmon
+- Cut into: 80 saku blocks (20 kg = 20,000 g = 80 × 250g)
+- Transfer to kitchen: 40 saku blocks (10 kg)
+- Use for service: 25 portions from 40 saku blocks
+
+## Conversion Calculation
+
+### Forward Conversion
+
+Convert from source UOM to target UOM:
+
+```
+target_quantity = source_quantity × factor
+```
+
+**Example**: 5 kg → g
+- factor = 1000
+- result = 5 × 1000 = 5000 g
+
+### Reverse Conversion
+
+Convert back (inverse):
+
+```
+source_quantity = target_quantity ÷ factor
+```
+
+**Example**: 5000 g → kg
+- factor = 1000 (kg → g)
+- result = 5000 ÷ 1000 = 5 kg
+
+<Info>
+  Always create **bidirectional conversions** for seamless transactions in both directions.
+</Info>
+
+### Chained Conversions
+
+For multi-step conversions (e.g., BOX → PACK → UNIT):
+
+```
+final_qty = original_qty × factor1 × factor2
+```
+
+**Example**: 2 boxes → units (BOX → PACK → UNIT)
+- BOX → PACK: factor = 10 (1 box = 10 packs)
+- PACK → UNIT: factor = 50 (1 pack = 50 units)
+- Result: 2 × 10 × 50 = 1000 units
+
+<Warning>
+  Current system supports **single-step conversions only**. For chained conversions, create direct conversion rules or pre-calculate factors.
+</Warning>
+
+## Tolerance in Physical Counts
+
+The `tolerance` field defines acceptable variance in physical counts:
+
+```
+variance_pct = abs((actual - expected) / expected) × 100
+acceptable = (variance_pct <= tolerance)
+```
+
+**Example**: Tolerance = 2.0% (2.0)
+
+| Expected | Actual | Variance | Acceptable? |
+|----------|--------|----------|-------------|
+| 100 kg | 102 kg | 2.0% | ✓ Yes |
+| 100 kg | 103 kg | 3.0% | ✗ No |
+| 50 L | 49.5 L | 1.0% | ✓ Yes |
+| 50 L | 48 L | 4.0% | ✗ No |
+
+<Info>
+  Tolerance is used during physical inventory counts to flag significant discrepancies that require investigation.
+</Info>
+
+## Validation Rules
+
+### UOM Creation
+
+<Tabs>
+  <Tab title="Required Fields">
+    - `code` (unique, max 20, uppercase recommended)
+    - `name` (max 100)
+  </Tab>
+  <Tab title="Optional Fields">
+    - `symbol` (max 10, default: same as code)
+    - `precision` (0-6, default: 2)
+    - `is_decimal` (default: true)
+    - `is_active` (default: true)
+  </Tab>
+  <Tab title="Constraints">
+    - `code` must be unique
+    - `precision` must be between 0 and 6
+  </Tab>
+</Tabs>
+
+### Conversion Creation
+
+<Tabs>
+  <Tab title="Required Fields">
+    - `from_uom_id` (must exist)
+    - `to_uom_id` (must exist)
+    - `factor` (> 0)
+  </Tab>
+  <Tab title="Optional Fields">
+    - `tolerance` (≥ 0, default: 0)
+    - `is_active` (default: true)
+  </Tab>
+  <Tab title="Constraints">
+    - `from_uom_id` ≠ `to_uom_id`
+    - `factor` must be positive
+    - `tolerance` must be non-negative
+    - Unique: (from_uom_id, to_uom_id)
+  </Tab>
+</Tabs>
+
+## Business Rules
+
+<CardGroup cols={2}>
+  <Card title="Bidirectional Setup" icon="arrows-left-right">
+    Always create both directions (A→B and B→A) for flexibility
+  </Card>
+  <Card title="Base UOM Per Variant" icon="anchor">
+    Each variant has one base UOM; all conversions normalize to it
+  </Card>
+  <Card title="Active Conversions Only" icon="toggle-on">
+    Inactive conversions are ignored by the system
+  </Card>
+  <Card title="Item-Specific Packaging" icon="box">
+    Count conversions (BOX→UNIT) vary per item
+  </Card>
+</CardGroup>
+
+### Item Type UOM Rules
+
+| Item Type | UOM Conversions | Reasoning |
+|-----------|----------------|-----------|
+| INSUMO | Multiple allowed | Flexible receiving, storing, and consumption |
+| PRODUCTO | Base only (discouraged) | Finished goods typically have fixed packaging |
+| ACTIVO | Base only (1:1) | Assets counted as discrete units |
+
+## Common Workflows
+
+### Workflow 1: Set Up Weight System
+
+<Steps>
+  <Step title="Create Base UOMs">
+    POST `/api/v1/units-of-measure` for KG, G, LB, OZ
+  </Step>
+  <Step title="Create Metric Conversions">
+    KG↔G bidirectional conversions
+  </Step>
+  <Step title="Create Imperial Conversions">
+    LB↔OZ bidirectional conversions
+  </Step>
+  <Step title="Create Cross-System Conversions">
+    KG↔LB and G↔OZ for mixed-unit scenarios
+  </Step>
+  <Step title="Set Tolerances">
+    Assign 1-2% tolerance for physical counts
+  </Step>
+</Steps>
+
+### Workflow 2: Set Up Item-Specific Packaging
+
+<Steps>
+  <Step title="Create Generic Count UOMs">
+    UNIT, PACK, BOX, CASE (if not exists)
+  </Step>
+  <Step title="Define Item Packaging">
+    For "Soy Sauce": 1 CASE = 4 BOX, 1 BOX = 6 BTL
+  </Step>
+  <Step title="Create Item Conversions">
+    POST conversions specific to this item's packaging
+  </Step>
+  <Step title="Test with Sample Transaction">
+    Register opening balance in CASE, verify conversion to BTL
+  </Step>
+</Steps>
+
+### Workflow 3: Handle Multi-UOM Receipt
+
+<Steps>
+  <Step title="Vendor Ships in Mixed UOMs">
+    Receipt contains: 10 boxes + 50 individual units
+  </Step>
+  <Step title="Create Multi-Line Movement">
+    Line 1: 10 BOX → converts to base  
+    Line 2: 50 UNIT → base UOM
+  </Step>
+  <Step title="System Converts Each Line">
+    Total stock in base UOM = (10 × box_factor) + 50
+  </Step>
+  <Step title="Stock Updated">
+    Single stock record updated with total base quantity
+  </Step>
+</Steps>
+
+## Database Schema
+
+### units_of_measure Table
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | bigint | PK, auto-increment |
+| code | varchar(20) | UNIQUE, NOT NULL |
+| name | varchar(100) | NOT NULL |
+| symbol | varchar(10) | NULLABLE |
+| precision | smallint | DEFAULT 2, CHECK (0-6) |
+| is_decimal | boolean | DEFAULT true |
+| is_active | boolean | DEFAULT true |
+| meta | jsonb | DEFAULT '{}' |
+| created_at | timestamp | |
+| updated_at | timestamp | |
+
+**Indexes**:
+- `idx_uom_code` on (code) UNIQUE
+- `idx_uom_active` on (is_active)
+
+### uom_conversions Table
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | bigint | PK, auto-increment |
+| from_uom_id | bigint | FK → units_of_measure.id, NOT NULL |
+| to_uom_id | bigint | FK → units_of_measure.id, NOT NULL |
+| factor | decimal(12,6) | NOT NULL, CHECK (> 0) |
+| tolerance | decimal(10,4) | DEFAULT 0, CHECK (>= 0) |
+| is_active | boolean | DEFAULT true |
+| meta | jsonb | DEFAULT '{}' |
+| created_at | timestamp | |
+| updated_at | timestamp | |
+
+**Indexes**:
+- `idx_uom_conversion_from` on (from_uom_id)
+- `idx_uom_conversion_to` on (to_uom_id)
+- `idx_uom_conversion_lookup` on (from_uom_id, to_uom_id, is_active)
+
+**Constraints**:
+- Unique: (from_uom_id, to_uom_id)
+- Check: `from_uom_id != to_uom_id`
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Name UOMs Clearly">
+    Use descriptive names: "Kilogram" not "KG Unit"
+  </Accordion>
+  <Accordion title="Use Standard Symbols">
+    Follow ISO/industry standards: kg, g, L, mL, lb, oz
+  </Accordion>
+  <Accordion title="Set Appropriate Precision">
+    Weight: 4 decimals (0.0001), Count: 0 decimals, Currency: 2 decimals
+  </Accordion>
+  <Accordion title="Create Bidirectional Conversions">
+    Always add both A→B and B→A for seamless transactions
+  </Accordion>
+  <Accordion title="Use Tolerances for Perishables">
+    Set 2-5% tolerance for items prone to evaporation/shrinkage
+  </Accordion>
+  <Accordion title="Document Item-Specific Packaging">
+    Store packaging details in item.meta or variant.meta for reference
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Items & Variants" icon="box" href="/inventory/items-and-variants">
+    Assign base UOMs to item variants
+  </Card>
+  <Card title="Stock Movements" icon="truck-fast" href="/inventory/stock-movements">
+    Use conversions in multi-UOM transactions
+  </Card>
+  <Card title="Inventory Locations" icon="warehouse" href="/inventory/locations">
+    Set up locations to hold converted stock
+  </Card>
+</CardGroup>

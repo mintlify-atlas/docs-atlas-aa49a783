@@ -1,0 +1,193 @@
+---
+title: "Get Current User"
+api: "GET /api/v1/auth/me"
+description: "Retrieve the authenticated user's information including roles and permissions"
+---
+
+## Authentication
+
+**Required**: Bearer token in the `Authorization` header.
+
+```
+Authorization: Bearer {your_access_token}
+```
+
+## Request Parameters
+
+This endpoint does not require any query parameters or request body.
+
+## Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (200 for success)
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable title="data properties">
+    <ResponseField name="id" type="integer">
+      User's unique identifier
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      User's full name
+    </ResponseField>
+    
+    <ResponseField name="email" type="string">
+      User's email address
+    </ResponseField>
+    
+    <ResponseField name="roles" type="array">
+      Array of role objects assigned to the user
+      
+      <Expandable title="role object">
+        <ResponseField name="id" type="integer">
+          Role ID
+        </ResponseField>
+        
+        <ResponseField name="name" type="string">
+          Role name (e.g., "admin", "super-admin", "inventory-manager")
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="permissions" type="array">
+      Array of permission objects directly assigned to the user
+      
+      <Expandable title="permission object">
+        <ResponseField name="id" type="integer">
+          Permission ID
+        </ResponseField>
+        
+        <ResponseField name="name" type="string">
+          Permission name (e.g., "view-items", "create-inventory")
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object" nullable>
+  Additional metadata (null for this endpoint)
+</ResponseField>
+
+## Success Response Example
+
+```json
+{
+  "status": 200,
+  "data": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "roles": [
+      {
+        "id": 1,
+        "name": "admin"
+      },
+      {
+        "id": 3,
+        "name": "inventory-manager"
+      }
+    ],
+    "permissions": [
+      {
+        "id": 5,
+        "name": "view-items"
+      },
+      {
+        "id": 12,
+        "name": "create-inventory"
+      },
+      {
+        "id": 18,
+        "name": "manage-users"
+      }
+    ]
+  },
+  "meta": null
+}
+```
+
+## Error Responses
+
+<Expandable title="401 Unauthorized - Missing or Invalid Token">
+```json
+{
+  "message": "Unauthenticated."
+}
+```
+
+This error occurs when:
+- No `Authorization` header is provided
+- The token is invalid or malformed
+- The token has been revoked
+</Expandable>
+
+<Expandable title="500 Internal Server Error">
+```json
+{
+  "status": 500,
+  "message": "An unexpected error occurred"
+}
+```
+</Expandable>
+
+## Code Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET https://api.sushigo.local/api/v1/auth/me \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc..."
+```
+
+```javascript JavaScript
+const token = 'eyJ0eXAiOiJKV1QiLCJhbGc...'; // Your access token
+
+const response = await fetch('https://api.sushigo.local/api/v1/auth/me', {
+  method: 'GET',
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const data = await response.json();
+console.log('User:', data.data);
+console.log('Roles:', data.data.roles);
+console.log('Permissions:', data.data.permissions);
+```
+
+```php PHP
+<?php
+
+use Illuminate\Support\Facades\Http;
+
+$token = 'eyJ0eXAiOiJKV1QiLCJhbGc...'; // Your access token
+
+$response = Http::withToken($token)
+    ->get('https://api.sushigo.local/api/v1/auth/me');
+
+$data = $response->json();
+$user = $data['data'];
+
+echo "User: {$user['name']}\n";
+echo "Email: {$user['email']}\n";
+echo "Roles: " . implode(', ', array_column($user['roles'], 'name')) . "\n";
+```
+
+</CodeGroup>
+
+## Usage Notes
+
+- This endpoint is useful for:
+  - Validating that a stored token is still valid
+  - Fetching fresh user data after login
+  - Implementing client-side authorization based on roles/permissions
+  - Displaying the current user's profile information
+- The `roles` array includes all roles assigned to the user via Spatie permissions
+- The `permissions` array includes direct user permissions (not those inherited from roles)
+- To check all permissions (including those from roles), use the backend permission checking methods

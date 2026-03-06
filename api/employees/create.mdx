@@ -1,0 +1,324 @@
+---
+title: "Create Employee"
+description: "Create a new employee with user account and initial employment period"
+api: "POST /api/v1/employees"
+---
+
+## Overview
+
+Creates a new employee record with a linked user account and an initial employment period. The system automatically sends account setup instructions via email or WhatsApp (SMS) based on the contact information provided.
+
+<Info>
+  Either `email` or `phone` must be provided. When both are provided, the employee will have both contact methods available.
+</Info>
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from OAuth2 authentication
+</ParamField>
+
+## Body Parameters
+
+<ParamField body="code" type="string" required>
+  Unique employee code (max 20 characters). Will be converted to uppercase automatically.
+  
+  **Example**: `"EMP-001"`
+  
+  <Info>Use the [Suggest Employee Code](/api/employees/create#suggest-code) endpoint to get the next available code.</Info>
+</ParamField>
+
+<ParamField body="first_name" type="string" required>
+  Employee first name (max 100 characters)
+  
+  **Example**: `"Juan"`
+</ParamField>
+
+<ParamField body="last_name" type="string" required>
+  Employee last name (max 100 characters)
+  
+  **Example**: `"Pérez"`
+</ParamField>
+
+<ParamField body="roles" type="array" required>
+  Array of position role names to assign to the employee. Must contain at least one role.
+  
+  **Allowed values** (for non-super-admins): `manager`, `cook`, `kitchen-assistant`, `delivery-driver`, `acting-manager`, `admin`
+  
+  **Super-admin only**: `super-admin` role can only be assigned by users with the super-admin role
+  
+  **Example**: `["cook", "kitchen-assistant"]`
+</ParamField>
+
+<ParamField body="email" type="string">
+  Employee email address. Required if `phone` is not provided. Must be unique across all users.
+  
+  **Format**: Valid email address (max 255 characters)
+  
+  **Example**: `"juan.perez@sushigo.com"`
+  
+  <Note>A welcome email with password setup link will be sent to this address.</Note>
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Employee phone number. Required if `email` is not provided. Must be unique across all users.
+  
+  **Format**: 10-digit national phone number without country code (spaces and dashes are automatically stripped)
+  
+  **Example**: `"5512345678"` or `"55 1234 5678"`
+  
+  <Note>
+    The country code (+52 for Mexico) is added automatically. A WhatsApp message with password setup link will be sent to this number.
+  </Note>
+</ParamField>
+
+<ParamField body="branch_id" type="integer" required>
+  ID of the branch where the employee will work. Creates the initial employment period linked to this branch.
+  
+  **Example**: `1`
+</ParamField>
+
+<ParamField body="start_date" type="string" required>
+  Start date for the initial employment period.
+  
+  **Format**: YYYY-MM-DD
+  
+  **Example**: `"2026-01-15"`
+</ParamField>
+
+<ParamField body="meta" type="object">
+  Optional metadata object to store additional information about the employee.
+  
+  **Example**: `{"emergency_contact": "555-9999", "notes": "Bilingual"}`
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (201 for created)
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The created employee object
+  
+  <Expandable title="Employee Object">
+    <ResponseField name="id" type="string">
+      Employee public identifier (ULID format)
+    </ResponseField>
+    
+    <ResponseField name="code" type="string">
+      Unique employee code (uppercase)
+    </ResponseField>
+    
+    <ResponseField name="first_name" type="string">
+      Employee first name
+    </ResponseField>
+    
+    <ResponseField name="last_name" type="string">
+      Employee last name
+    </ResponseField>
+    
+    <ResponseField name="is_active" type="boolean">
+      Active status (always `true` for new employees)
+    </ResponseField>
+    
+    <ResponseField name="email" type="string" nullable>
+      Employee email address
+    </ResponseField>
+    
+    <ResponseField name="phone" type="string" nullable>
+      Employee phone number (without country code)
+    </ResponseField>
+    
+    <ResponseField name="roles" type="array">
+      Array of position role names assigned to this employee
+    </ResponseField>
+    
+    <ResponseField name="employment_periods" type="array">
+      Array containing the initial employment period
+      
+      <Expandable title="Employment Period">
+        <ResponseField name="id" type="string">
+          Employment period public identifier (ULID)
+        </ResponseField>
+        
+        <ResponseField name="branch_id" type="integer">
+          Branch ID
+        </ResponseField>
+        
+        <ResponseField name="branch" type="object">
+          Branch details object
+        </ResponseField>
+        
+        <ResponseField name="start_date" type="string">
+          Start date (YYYY-MM-DD)
+        </ResponseField>
+        
+        <ResponseField name="end_date" type="string" nullable>
+          End date (null for active periods)
+        </ResponseField>
+        
+        <ResponseField name="is_active" type="boolean">
+          Whether this period is active
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="meta" type="object" nullable>
+      Additional metadata
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="string">
+      ISO 8601 timestamp (UTC)
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="string">
+      ISO 8601 timestamp (UTC)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Errors
+
+<ResponseField name="422" type="object">
+  Validation error
+  
+  Common validation errors:
+  - Employee code already exists
+  - Email already in use by another user
+  - Phone already in use by another user
+  - At least one of email or phone is required
+  - Invalid role (attempting to assign super-admin without permission)
+  - Branch ID does not exist
+</ResponseField>
+
+## Examples
+
+<Tabs>
+  <Tab title="With email">
+    ```bash
+    curl -X POST "https://api.sushigo.local/api/v1/employees" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "code": "EMP-001",
+        "first_name": "Juan",
+        "last_name": "Pérez",
+        "roles": ["cook", "kitchen-assistant"],
+        "email": "juan.perez@sushigo.com",
+        "branch_id": 1,
+        "start_date": "2026-01-15"
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="With phone">
+    ```bash
+    curl -X POST "https://api.sushigo.local/api/v1/employees" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "code": "EMP-002",
+        "first_name": "María",
+        "last_name": "González",
+        "roles": ["manager"],
+        "phone": "5587654321",
+        "branch_id": 1,
+        "start_date": "2026-02-01"
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="With both contacts">
+    ```bash
+    curl -X POST "https://api.sushigo.local/api/v1/employees" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "code": "EMP-003",
+        "first_name": "Carlos",
+        "last_name": "Ramírez",
+        "roles": ["delivery-driver"],
+        "email": "carlos.ramirez@sushigo.com",
+        "phone": "5598765432",
+        "branch_id": 2,
+        "start_date": "2026-02-15",
+        "meta": {
+          "vehicle_type": "motorcycle",
+          "license_plate": "ABC-123"
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Response Example
+
+```json
+{
+  "status": 201,
+  "data": {
+    "id": "01JKXYZ1234567890ABCDEFGH",
+    "code": "EMP-001",
+    "first_name": "Juan",
+    "last_name": "Pérez",
+    "is_active": true,
+    "email": "juan.perez@sushigo.com",
+    "phone": null,
+    "roles": ["cook", "kitchen-assistant"],
+    "employment_periods": [
+      {
+        "id": "01JKXYZ9876543210ZYXWVUTS",
+        "branch_id": 1,
+        "branch": {
+          "id": 1,
+          "name": "SushiGo Centro",
+          "code": "CENTRO"
+        },
+        "start_date": "2026-01-15",
+        "end_date": null,
+        "is_active": true
+      }
+    ],
+    "meta": null,
+    "created_at": "2026-01-15T14:30:00+00:00",
+    "updated_at": "2026-01-15T14:30:00+00:00"
+  }
+}
+```
+
+## Suggest Employee Code
+
+Before creating an employee, you can request the next available employee code.
+
+### Endpoint
+
+```
+GET /api/v1/employees/next-code
+```
+
+### Response
+
+```json
+{
+  "code": "EMP-006",
+  "prefix": "EMP-"
+}
+```
+
+### Example
+
+```bash
+curl -X GET "https://api.sushigo.local/api/v1/employees/next-code" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+<Info>
+  The code suggestion is based on the configured prefix and existing employee codes. The system finds the highest numeric suffix and suggests the next number.
+</Info>
+
+## Related Endpoints
+
+- [List Employees](/api/employees/list) - Retrieve all employees
+- [Update Employee](/api/employees/update) - Update employee details
+- [Employee Wages](/api/employees/wages) - Manage wage history

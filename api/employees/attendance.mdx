@@ -1,0 +1,633 @@
+---
+title: "Employee Attendance"
+description: "Track employee attendance with check-in, check-out, and lunch break recording"
+api: "GET /api/v1/attendances/today"
+---
+
+## Overview
+
+The attendance system records employee work hours with four time points: check-in, lunch-start, lunch-end (return), and check-out. The system automatically calculates tardiness, net worked minutes, and overtime against configured schedules.
+
+<Info>
+  All timestamps are accepted in ISO 8601 format with timezone offset (e.g., `2026-02-23T09:05:30-06:00`) and normalized to UTC by the server.
+</Info>
+
+## Today's Attendance View
+
+Retrieve all active employees for a branch with their attendance status for today.
+
+### Endpoint
+
+```
+GET /api/v1/attendances/today
+```
+
+### Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from OAuth2 authentication
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="branch_id" type="integer" required>
+  Branch ID to filter active employees
+  
+  **Example**: `1`
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (200)
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of employee-attendance pairs, sorted by employee last name and first name
+  
+  <Expandable title="Employee-Attendance Pair">
+    <ResponseField name="employee" type="object">
+      Employee summary information
+      
+      <Expandable title="Employee Summary">
+        <ResponseField name="id" type="string">
+          Employee public identifier (ULID)
+        </ResponseField>
+        
+        <ResponseField name="code" type="string">
+          Employee code (e.g., "EMP-001")
+        </ResponseField>
+        
+        <ResponseField name="first_name" type="string">
+          Employee first name
+        </ResponseField>
+        
+        <ResponseField name="last_name" type="string">
+          Employee last name
+        </ResponseField>
+        
+        <ResponseField name="roles" type="array">
+          Array of position role names
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="attendance" type="object" nullable>
+      Today's attendance record for this employee, or `null` if not yet registered
+      
+      <Expandable title="Attendance Object">
+        <ResponseField name="id" type="string">
+          Attendance public identifier (ULID)
+        </ResponseField>
+        
+        <ResponseField name="employee_id" type="string">
+          Employee public identifier
+        </ResponseField>
+        
+        <ResponseField name="date" type="string">
+          Attendance date (YYYY-MM-DD)
+        </ResponseField>
+        
+        <ResponseField name="check_in" type="string" nullable>
+          Check-in timestamp (ISO 8601 UTC)
+        </ResponseField>
+        
+        <ResponseField name="check_out" type="string" nullable>
+          Check-out timestamp (ISO 8601 UTC)
+        </ResponseField>
+        
+        <ResponseField name="lunch_start" type="string" nullable>
+          Lunch break start timestamp (ISO 8601 UTC)
+        </ResponseField>
+        
+        <ResponseField name="lunch_end" type="string" nullable>
+          Lunch break end timestamp (ISO 8601 UTC)
+        </ResponseField>
+        
+        <ResponseField name="entry_late_seconds" type="integer" nullable>
+          Number of seconds late for check-in (compared to schedule)
+        </ResponseField>
+        
+        <ResponseField name="lunch_late_seconds" type="integer" nullable>
+          Number of seconds late returning from lunch (compared to schedule)
+        </ResponseField>
+        
+        <ResponseField name="net_worked_minutes" type="integer" nullable>
+          Total minutes worked (excluding lunch, calculated on check-out)
+        </ResponseField>
+        
+        <ResponseField name="overtime_minutes" type="integer" nullable>
+          Overtime minutes beyond scheduled hours (calculated on check-out)
+        </ResponseField>
+        
+        <ResponseField name="overtime_authorized" type="boolean">
+          Whether overtime has been authorized by a manager
+        </ResponseField>
+        
+        <ResponseField name="overtime_authorized_by" type="integer" nullable>
+          User ID who authorized overtime
+        </ResponseField>
+        
+        <ResponseField name="overtime_authorized_at" type="string" nullable>
+          Timestamp when overtime was authorized (ISO 8601 UTC)
+        </ResponseField>
+        
+        <ResponseField name="day_status" type="string" nullable>
+          Current day status (e.g., "PRESENT", "ABSENT", "HOLIDAY")
+        </ResponseField>
+        
+        <ResponseField name="confirmed_by" type="integer" nullable>
+          User ID who confirmed the attendance record
+        </ResponseField>
+        
+        <ResponseField name="meta" type="object" nullable>
+          Additional metadata
+        </ResponseField>
+        
+        <ResponseField name="created_at" type="string">
+          ISO 8601 timestamp (UTC)
+        </ResponseField>
+        
+        <ResponseField name="updated_at" type="string">
+          ISO 8601 timestamp (UTC)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X GET "https://api.sushigo.local/api/v1/attendances/today?branch_id=1" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Response Example
+
+```json
+{
+  "status": 200,
+  "data": [
+    {
+      "employee": {
+        "id": "01JKXYZ1234567890ABCDEFGH",
+        "code": "EMP-001",
+        "first_name": "Juan",
+        "last_name": "Pérez",
+        "roles": ["cook"]
+      },
+      "attendance": {
+        "id": "01JKXYZABC9876543210ZYXWV",
+        "employee_id": "01JKXYZ1234567890ABCDEFGH",
+        "date": "2026-03-06",
+        "check_in": "2026-03-06T15:05:30+00:00",
+        "check_out": null,
+        "lunch_start": null,
+        "lunch_end": null,
+        "entry_late_seconds": 330,
+        "lunch_late_seconds": null,
+        "net_worked_minutes": null,
+        "overtime_minutes": null,
+        "overtime_authorized": false,
+        "overtime_authorized_by": null,
+        "overtime_authorized_at": null,
+        "day_status": "PRESENT",
+        "confirmed_by": null,
+        "meta": null,
+        "created_at": "2026-03-06T15:05:30+00:00",
+        "updated_at": "2026-03-06T15:05:30+00:00"
+      }
+    },
+    {
+      "employee": {
+        "id": "01JKXYZ9999888777666ABCDE",
+        "code": "EMP-002",
+        "first_name": "María",
+        "last_name": "González",
+        "roles": ["manager"]
+      },
+      "attendance": null
+    }
+  ]
+}
+```
+
+## Register Check-In
+
+Record an employee's arrival time.
+
+### Endpoint
+
+```
+POST /api/v1/attendances/check-in
+```
+
+### Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from OAuth2 authentication
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="employee_id" type="string" required>
+  Employee public identifier (ULID)
+  
+  **Example**: `"01JKXYZ1234567890ABCDEFGH"`
+</ParamField>
+
+<ParamField body="check_in" type="string" required>
+  Check-in timestamp in ISO 8601 / RFC 3339 format with timezone offset
+  
+  **Format**: ISO 8601 with offset (normalized to UTC by server)
+  
+  **Example**: `"2026-02-23T09:05:30-06:00"`
+</ParamField>
+
+### Behavior
+
+1. Validates that the employee exists and is not soft-deleted
+2. Checks that employee has an active employment period
+3. Validates that employee has a schedule assigned for the date
+4. Ensures no attendance record already exists for this employee today
+5. Calculates `entry_late_seconds` by comparing check-in time to the scheduled start time
+6. Creates attendance record with `day_status` set to "PRESENT"
+
+<Warning>
+  Returns 422 error if:
+  - Employee already has attendance for the day
+  - Employee has no active employment period
+  - Employee has no schedule assigned for the date
+</Warning>
+
+### Example
+
+```bash
+curl -X POST "https://api.sushigo.local/api/v1/attendances/check-in" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employee_id": "01JKXYZ1234567890ABCDEFGH",
+    "check_in": "2026-03-06T09:05:30-06:00"
+  }'
+```
+
+### Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (201 for created)
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The created attendance object (see structure in Today's Attendance View)
+</ResponseField>
+
+### Response Example
+
+```json
+{
+  "status": 201,
+  "data": {
+    "id": "01JKXYZABC9876543210ZYXWV",
+    "employee_id": "01JKXYZ1234567890ABCDEFGH",
+    "date": "2026-03-06",
+    "check_in": "2026-03-06T15:05:30+00:00",
+    "check_out": null,
+    "lunch_start": null,
+    "lunch_end": null,
+    "entry_late_seconds": 330,
+    "lunch_late_seconds": null,
+    "net_worked_minutes": null,
+    "overtime_minutes": null,
+    "overtime_authorized": false,
+    "overtime_authorized_by": null,
+    "overtime_authorized_at": null,
+    "day_status": "PRESENT",
+    "confirmed_by": null,
+    "meta": null,
+    "created_at": "2026-03-06T15:05:30+00:00",
+    "updated_at": "2026-03-06T15:05:30+00:00"
+  }
+}
+```
+
+## Register Check-Out
+
+Record an employee's departure time.
+
+### Endpoint
+
+```
+PATCH /api/v1/attendances/{id}/check-out
+```
+
+### Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from OAuth2 authentication
+</ParamField>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Attendance public identifier (ULID)
+  
+  **Example**: `"01JKXYZABC9876543210ZYXWV"`
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="check_out" type="string" required>
+  Check-out timestamp in ISO 8601 / RFC 3339 format with timezone offset
+  
+  **Format**: ISO 8601 with offset (normalized to UTC by server)
+  
+  **Example**: `"2026-02-23T17:05:00-06:00"`
+</ParamField>
+
+### Behavior
+
+1. Validates that the attendance record exists
+2. Records the `check_out` timestamp
+3. Calculates `net_worked_minutes` (total time excluding lunch break)
+4. Calculates `overtime_minutes` (time worked beyond scheduled hours)
+
+<Info>
+  The calculation accounts for lunch breaks. If lunch_start and lunch_end are recorded, that time is excluded from net_worked_minutes.
+</Info>
+
+### Example
+
+```bash
+curl -X PATCH "https://api.sushigo.local/api/v1/attendances/01JKXYZABC9876543210ZYXWV/check-out" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "check_out": "2026-03-06T17:05:00-06:00"
+  }'
+```
+
+### Response
+
+<ResponseField name="status" type="integer">
+  HTTP status code (200)
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The updated attendance object with calculated fields
+</ResponseField>
+
+### Response Example
+
+```json
+{
+  "status": 200,
+  "data": {
+    "id": "01JKXYZABC9876543210ZYXWV",
+    "employee_id": "01JKXYZ1234567890ABCDEFGH",
+    "date": "2026-03-06",
+    "check_in": "2026-03-06T15:05:30+00:00",
+    "check_out": "2026-03-06T23:05:00+00:00",
+    "lunch_start": "2026-03-06T19:00:00+00:00",
+    "lunch_end": "2026-03-06T20:00:00+00:00",
+    "entry_late_seconds": 330,
+    "lunch_late_seconds": 0,
+    "net_worked_minutes": 420,
+    "overtime_minutes": 0,
+    "overtime_authorized": false,
+    "overtime_authorized_by": null,
+    "overtime_authorized_at": null,
+    "day_status": "PRESENT",
+    "confirmed_by": null,
+    "meta": null,
+    "created_at": "2026-03-06T15:05:30+00:00",
+    "updated_at": "2026-03-06T23:05:00+00:00"
+  }
+}
+```
+
+## Register Lunch Start
+
+Record when an employee exits for their lunch break.
+
+### Endpoint
+
+```
+PATCH /api/v1/attendances/{id}/lunch-start
+```
+
+### Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from OAuth2 authentication
+</ParamField>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Attendance public identifier (ULID)
+  
+  **Example**: `"01JKXYZABC9876543210ZYXWV"`
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="lunch_start" type="string" required>
+  Lunch start timestamp in ISO 8601 / RFC 3339 format with timezone offset
+  
+  **Format**: ISO 8601 with offset (normalized to UTC by server)
+  
+  **Example**: `"2026-02-23T13:05:00-06:00"`
+</ParamField>
+
+### Example
+
+```bash
+curl -X PATCH "https://api.sushigo.local/api/v1/attendances/01JKXYZABC9876543210ZYXWV/lunch-start" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lunch_start": "2026-03-06T13:05:00-06:00"
+  }'
+```
+
+### Response
+
+Returns the updated attendance object with `lunch_start` recorded.
+
+## Register Lunch Return
+
+Record when an employee returns from their lunch break.
+
+### Endpoint
+
+```
+PATCH /api/v1/attendances/{id}/lunch-return
+```
+
+### Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token from OAuth2 authentication
+</ParamField>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Attendance public identifier (ULID)
+  
+  **Example**: `"01JKXYZABC9876543210ZYXWV"`
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="lunch_end" type="string" required>
+  Lunch return timestamp in ISO 8601 / RFC 3339 format with timezone offset
+  
+  **Format**: ISO 8601 with offset (normalized to UTC by server)
+  
+  **Example**: `"2026-02-23T14:10:00-06:00"`
+</ParamField>
+
+### Behavior
+
+1. Records the `lunch_end` timestamp
+2. Calculates `lunch_late_seconds` by comparing return time to scheduled lunch end time
+
+### Example
+
+```bash
+curl -X PATCH "https://api.sushigo.local/api/v1/attendances/01JKXYZABC9876543210ZYXWV/lunch-return" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lunch_end": "2026-03-06T14:10:00-06:00"
+  }'
+```
+
+### Response
+
+Returns the updated attendance object with `lunch_end` and `lunch_late_seconds` recorded.
+
+## Attendance Flow
+
+A typical attendance record follows this flow:
+
+<Steps>
+  <Step title="Check-In">
+    Employee arrives and records check-in time. System calculates entry tardiness.
+  </Step>
+  
+  <Step title="Lunch Start">
+    Employee leaves for lunch break. Timestamp is recorded.
+  </Step>
+  
+  <Step title="Lunch Return">
+    Employee returns from lunch. System calculates lunch tardiness.
+  </Step>
+  
+  <Step title="Check-Out">
+    Employee departs. System calculates net worked minutes and overtime.
+  </Step>
+</Steps>
+
+<Info>
+  Each timestamp can only be recorded once. To correct a mistake, contact an administrator to update the attendance record directly.
+</Info>
+
+## Tardiness Thresholds
+
+The system tracks two types of tardiness:
+
+### Entry Tardiness
+
+- **Measured**: Difference between `check_in` and scheduled start time
+- **Threshold**: 30 minutes (1800 seconds)
+- **Deductible**: Tardiness over 30 minutes is deducted from worked time
+- **Example**: 5 minutes late = 300 seconds (not deductible), 35 minutes late = 2100 seconds (deductible)
+
+<Warning>
+  Exactly 30 minutes late (1800 seconds) is NOT deductible. Only tardiness GREATER than 30 minutes is deducted.
+</Warning>
+
+### Lunch Tardiness
+
+- **Measured**: Difference between `lunch_end` and scheduled lunch return time
+- **Threshold**: 30 minutes (1800 seconds)
+- **Deductible**: Tardiness over 30 minutes is deducted from worked time
+- **Example**: 10 minutes late = 600 seconds (not deductible), 45 minutes late = 2700 seconds (deductible)
+
+## Worked Time Calculation
+
+When check-out is recorded, the system calculates:
+
+### Net Worked Minutes
+
+```
+net_worked_minutes = (check_out - check_in) - (lunch_end - lunch_start) - deductible_tardiness
+```
+
+Where:
+- `deductible_tardiness` = entry tardiness over 30 min + lunch tardiness over 30 min
+- All times are in minutes
+- Result is rounded down to whole minutes
+
+### Overtime Minutes
+
+```
+overtime_minutes = max(0, net_worked_minutes - scheduled_daily_minutes)
+```
+
+Where:
+- `scheduled_daily_minutes` comes from the employee's schedule for that day
+- Overtime is only counted if net worked time exceeds the schedule
+- Negative values are clamped to 0
+
+<Info>
+  Overtime requires manager authorization to be paid. Use the overtime authorization endpoints to approve overtime hours.
+</Info>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Timezone handling">
+    - Always send timestamps with timezone offset (e.g., `-06:00` for Mexico City)
+    - The server normalizes all timestamps to UTC
+    - Display times in local timezone on the frontend
+    - Never send UTC timestamps from local time without offset
+  </Accordion>
+  
+  <Accordion title="Handling missed punches">
+    If an employee forgets to punch in/out:
+    
+    1. Manager can manually create/update attendance via admin interface
+    2. Use the exact time the employee reports (with timezone)
+    3. Document the correction in the `meta` field
+    4. Set `confirmed_by` to track who made the manual correction
+  </Accordion>
+  
+  <Accordion title="Schedule requirements">
+    Attendance recording requires:
+    
+    - Employee has an active employment period
+    - Employee has a schedule assigned for the date
+    - Schedule defines: start_time, end_time, lunch_start, lunch_end
+    
+    Without a schedule, check-in will fail with a 422 error.
+  </Accordion>
+  
+  <Accordion title="Overtime authorization">
+    - Overtime is calculated automatically on check-out
+    - Overtime must be authorized by a manager to be paid
+    - Use `overtime_authorized` flag to track approval
+    - Record who authorized (`overtime_authorized_by`) and when
+    - Unauthorized overtime is flagged for manager review
+  </Accordion>
+</AccordionGroup>
+
+## Related Endpoints
+
+- [List Employees](/api/employees/list) - Retrieve all employees
+- [Employee Wages](/api/employees/wages) - Manage wage history
+- [Update Employee](/api/employees/update) - Update employee details
