@@ -1,0 +1,309 @@
+---
+title: "Register"
+api: "POST /api/v1/auth/register"
+description: "Register a new user account with email or phone"
+---
+
+Create a new user account. Either email or phone is required, but not both. Returns an access token upon successful registration.
+
+## Authentication
+
+This endpoint does not require authentication.
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  Full name of the user
+  
+  **Validation**: Required, maximum 255 characters
+  
+  **Example**: `"Juan Pérez"`
+</ParamField>
+
+<ParamField body="email" type="string">
+  User's email address. Required if `phone` is not provided.
+  
+  **Validation**: Must be a valid email format, unique in the system
+  
+  **Example**: `"juan@sushigo.com"`
+</ParamField>
+
+<ParamField body="phone" type="string">
+  User's phone number without country code. Required if `email` is not provided.
+  
+  **Validation**: Must be exactly 10 digits, unique in the system
+  
+  **Example**: `"5512345678"`
+  
+  <Note>
+  The phone number is automatically sanitized - non-numeric characters are stripped.
+  </Note>
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password
+  
+  **Validation**: Minimum 8 characters, must be confirmed
+  
+  **Example**: `"securePassword123"`
+</ParamField>
+
+<ParamField body="password_confirmation" type="string" required>
+  Password confirmation - must match `password`
+  
+  **Example**: `"securePassword123"`
+</ParamField>
+
+<Note>
+You must provide either `email` or `phone`, but not both. The system will create a unique identifier based on the provided contact method.
+</Note>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Response status, always "success"
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  Registration response data
+  
+  <Expandable title="data properties">
+    <ResponseField name="access_token" type="string">
+      OAuth2 access token for API authentication (Bearer token)
+    </ResponseField>
+    
+    <ResponseField name="token_type" type="string">
+      Token type, always "Bearer"
+    </ResponseField>
+    
+    <ResponseField name="expires_at" type="string">
+      Token expiration timestamp in ISO 8601 format
+    </ResponseField>
+    
+    <ResponseField name="user" type="object">
+      Registered user details
+      
+      <Expandable title="user properties">
+        <ResponseField name="id" type="integer">
+          User's unique identifier
+        </ResponseField>
+        
+        <ResponseField name="name" type="string">
+          User's full name
+        </ResponseField>
+        
+        <ResponseField name="email" type="string">
+          User's email address (if provided)
+        </ResponseField>
+        
+        <ResponseField name="phone" type="string">
+          User's phone number with country code (if provided)
+        </ResponseField>
+        
+        <ResponseField name="roles" type="array">
+          Array of role names assigned to the user
+        </ResponseField>
+        
+        <ResponseField name="permissions" type="array">
+          Array of permission names granted to the user
+        </ResponseField>
+        
+        <ResponseField name="created_at" type="string">
+          Account creation timestamp (ISO 8601)
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Success Response Example
+
+```json
+{
+  "status": "success",
+  "data": {
+    "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9...",
+    "token_type": "Bearer",
+    "expires_at": "2026-04-06T15:30:00+00:00",
+    "user": {
+      "id": 42,
+      "name": "Juan Pérez",
+      "email": "juan@sushigo.com",
+      "phone": null,
+      "roles": [],
+      "permissions": [],
+      "created_at": "2026-03-06T15:30:00+00:00"
+    }
+  }
+}
+```
+
+## Error Responses
+
+### 422 Validation Error
+
+Returned when validation fails (missing required fields, duplicate email/phone, password mismatch, etc.).
+
+```json
+{
+  "message": "The given data was invalid.",
+  "errors": {
+    "email": [
+      "The email has already been taken."
+    ],
+    "password": [
+      "The password confirmation does not match."
+    ]
+  }
+}
+```
+
+### Common Validation Errors
+
+<AccordionGroup>
+  <Accordion title="Email/Phone Required">
+    **Error**: `"Email is required when phone is not provided."`
+    
+    **Cause**: Neither `email` nor `phone` was provided
+    
+    **Solution**: Provide either `email` or `phone`
+  </Accordion>
+  
+  <Accordion title="Duplicate Email">
+    **Error**: `"The email has already been taken."`
+    
+    **Cause**: Email address already exists in the system
+    
+    **Solution**: Use a different email or prompt user to log in
+  </Accordion>
+  
+  <Accordion title="Duplicate Phone">
+    **Error**: `"The phone has already been taken."`
+    
+    **Cause**: Phone number already exists in the system
+    
+    **Solution**: Use a different phone number or prompt user to log in
+  </Accordion>
+  
+  <Accordion title="Invalid Phone Format">
+    **Error**: `"The phone format is invalid."`
+    
+    **Cause**: Phone number is not exactly 10 digits
+    
+    **Solution**: Provide a 10-digit national phone number (e.g., `5512345678`)
+  </Accordion>
+  
+  <Accordion title="Password Too Short">
+    **Error**: `"The password must be at least 8 characters."`
+    
+    **Cause**: Password is less than 8 characters
+    
+    **Solution**: Use a password with at least 8 characters
+  </Accordion>
+  
+  <Accordion title="Password Mismatch">
+    **Error**: `"The password confirmation does not match."`
+    
+    **Cause**: `password` and `password_confirmation` don't match
+    
+    **Solution**: Ensure both fields contain the exact same password
+  </Accordion>
+</AccordionGroup>
+
+## Code Examples
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl -X POST http://localhost:8080/api/v1/auth/register \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Juan Pérez",
+        "email": "juan@sushigo.com",
+        "password": "securePassword123",
+        "password_confirmation": "securePassword123"
+      }'
+    ```
+  </Tab>
+  
+  <Tab title="JavaScript">
+    ```javascript
+    const response = await fetch('http://localhost:8080/api/v1/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: 'Juan Pérez',
+        email: 'juan@sushigo.com',
+        password: 'securePassword123',
+        password_confirmation: 'securePassword123'
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      // Store the access token
+      localStorage.setItem('access_token', data.data.access_token);
+      console.log('Registered user:', data.data.user);
+    } else {
+      console.error('Registration failed:', data.errors);
+    }
+    ```
+  </Tab>
+  
+  <Tab title="PHP">
+    ```php
+    use GuzzleHttp\Client;
+    
+    $client = new Client();
+    
+    try {
+        $response = $client->post('http://localhost:8080/api/v1/auth/register', [
+            'json' => [
+                'name' => 'Juan Pérez',
+                'email' => 'juan@sushigo.com',
+                'password' => 'securePassword123',
+                'password_confirmation' => 'securePassword123'
+            ]
+        ]);
+        
+        $data = json_decode($response->getBody(), true);
+        $token = $data['data']['access_token'];
+        $user = $data['data']['user'];
+        
+        echo "Registered user ID: " . $user['id'];
+    } catch (\GuzzleHttp\Exception\ClientException $e) {
+        $error = json_decode($e->getResponse()->getBody(), true);
+        print_r($error['errors']);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Usage Notes
+
+<CardGroup cols={2}>
+  <Card title="Auto-Login" icon="right-to-bracket">
+    Upon successful registration, the user receives an access token and is automatically logged in
+  </Card>
+  
+  <Card title="Phone Sanitization" icon="phone">
+    Phone numbers are automatically cleaned - spaces, dashes, and parentheses are removed
+  </Card>
+  
+  <Card title="Default Role" icon="user">
+    New users start with no roles - roles must be assigned by an administrator
+  </Card>
+  
+  <Card title="Password Security" icon="lock">
+    Passwords are hashed using Laravel's bcrypt algorithm with a cost factor of 10
+  </Card>
+</CardGroup>
+
+## Related Endpoints
+
+<Card title="Login" icon="right-to-bracket" href="/api/auth/login">
+  Authenticate existing user credentials
+</Card>
