@@ -1,0 +1,161 @@
+{
+  "projectType": "saas",
+  "projectName": "SushiGo",
+  "projectDescription": "Full-stack restaurant management platform for inventory, cash operations, attendance tracking, and payroll within the ComandaFlow ecosystem",
+  "theme": "almond",
+  "primaryColor": "#E63946",
+  "lightColor": "#F4A3A8",
+  "darkColor": "#A4161A",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "core/architecture",
+              "core/operating-units",
+              "core/authentication",
+              "core/permissions"
+            ]
+          },
+          {
+            "group": "Inventory Management",
+            "pages": [
+              "inventory/overview",
+              "inventory/items-and-variants",
+              "inventory/locations",
+              "inventory/stock-movements",
+              "inventory/unit-conversions"
+            ]
+          },
+          {
+            "group": "Cash Management",
+            "pages": [
+              "cash/overview",
+              "cash/sessions",
+              "cash/registers-and-terminals",
+              "cash/adjustments",
+              "cash/expenses",
+              "cash/bank-accounts"
+            ]
+          },
+          {
+            "group": "Employee Management",
+            "pages": [
+              "employees/overview",
+              "employees/creating-employees",
+              "employees/roles-and-permissions",
+              "employees/wage-history",
+              "employees/attendance-tracking"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/environment-setup",
+              "development/docker-compose",
+              "development/testing",
+              "development/conventions"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/login",
+              "api/auth/logout",
+              "api/auth/me",
+              "api/auth/password-reset"
+            ]
+          },
+          {
+            "group": "Inventory",
+            "pages": [
+              "api/inventory/items",
+              "api/inventory/item-variants",
+              "api/inventory/locations",
+              "api/inventory/stock",
+              "api/inventory/movements",
+              "api/inventory/units-of-measure"
+            ]
+          },
+          {
+            "group": "Cash Operations",
+            "pages": [
+              "api/cash/sessions",
+              "api/cash/registers",
+              "api/cash/terminals",
+              "api/cash/adjustments",
+              "api/cash/expenses",
+              "api/cash/bank-accounts"
+            ]
+          },
+          {
+            "group": "Employees",
+            "pages": [
+              "api/employees/list",
+              "api/employees/create",
+              "api/employees/update",
+              "api/employees/wages",
+              "api/employees/attendance"
+            ]
+          },
+          {
+            "group": "Operating Units",
+            "pages": [
+              "api/operating-units/list",
+              "api/operating-units/create",
+              "api/operating-units/users"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-location inventory management with stock movements and unit conversions",
+    "Cash session tracking with registers, terminals, and expense management",
+    "Employee attendance tracking with check-in/out and lunch break management",
+    "Role-based access control with Spatie permissions and Passport OAuth",
+    "Operating unit management for branches and temporary events",
+    "Comprehensive API with Swagger documentation and Single Action Controllers"
+  ],
+  "publicApiSurface": [
+    "POST /api/v1/auth/login - Authenticate user with email and password",
+    "POST /api/v1/auth/logout - Invalidate current access token",
+    "GET /api/v1/auth/me - Get authenticated user profile",
+    "GET /api/v1/items - List all items with pagination",
+    "POST /api/v1/items - Create new item",
+    "GET /api/v1/item-variants - List item variants with filters",
+    "POST /api/v1/item-variants - Create item variant",
+    "GET /api/v1/inventory-locations - List inventory locations",
+    "POST /api/v1/inventory-locations - Create inventory location",
+    "GET /api/v1/stock - List stock by location and variant",
+    "POST /api/v1/inventory/opening-balance - Register opening balance",
+    "POST /api/v1/inventory/stock-out - Register stock out movement",
+    "GET /api/v1/employees - List employees with filters",
+    "POST /api/v1/employees - Create new employee",
+    "PUT /api/v1/employees/{id} - Update employee details",
+    "GET /api/v1/employees/{id}/wages - List employee wage history",
+    "POST /api/v1/employees/{id}/wages - Create wage entry",
+    "GET /api/v1/attendance/today - Get today's attendance records",
+    "POST /api/v1/attendance/check-in - Register employee check-in",
+    "POST /api/v1/attendance/check-out - Register employee check-out",
+    "GET /api/v1/operating-units - List operating units",
+    "POST /api/v1/operating-units - Create operating unit"
+  ]
+}
